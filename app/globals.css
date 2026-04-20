@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
+/* Squinia — editorial simulation surface */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf7;
+  --foreground: #111111;
+  --muted: #5c5c55;
+  --faint: #8a8a82;
+  --rule: #e6e6e0;
+  --rule-strong: #d4d4cc;
+  --field: #f3f3ee;
+  --surface: #ffffff;
+  --accent: #32a852;
+  --accent-hover: #2b9650;
+  --accent-active: #258747;
+  --accent-fg: #ffffff;
+  --focus-ring: rgba(50, 168, 82, 0.45);
 }
 
 @theme inline {
@@ -12,15 +24,177 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes sim-mood {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes sim-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sim-live-enter {
+  from {
+    opacity: 0.82;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sim-disposition {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sim-fade-in {
+  animation: sim-fade-in 0.35s ease-out both;
+}
+
+.sim-live-panel {
+  animation: sim-live-enter 0.28s ease-out both;
+}
+
+.sim-disposition-label {
+  animation: sim-disposition 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-fade-in,
+  .sim-live-panel,
+  .sim-disposition-label {
+    animation: none !important;
+  }
+
+  .sim-mood-dot {
+    animation: none !important;
+  }
+
+  .sim-composer-shell,
+  .sim-root .sim-transition {
+    transition: none !important;
+  }
+}
+
+.sim-btn-accent {
+  border-radius: 0.75rem;
+  background-color: #32a852;
+  color: var(--accent-fg);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06), 0 6px 20px rgba(50, 168, 82, 0.22);
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.sim-btn-accent:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.08), 0 8px 24px rgba(50, 168, 82, 0.28);
+}
+
+.sim-btn-accent:active:not(:disabled) {
+  background-color: var(--accent-active);
+}
+
+.sim-btn-accent:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.sim-btn-muted {
+  border-radius: 0.75rem;
+  background-color: var(--rule-strong);
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: not-allowed;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/** Send disabled — reads as “waiting for input”, not a broken control */
+.sim-btn-send-idle {
+  border-radius: 0.75rem;
+  border: 1px dashed rgba(50, 168, 82, 0.38);
+  background-color: rgba(50, 168, 82, 0.07);
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: not-allowed;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.sim-root .sim-btn-send-idle:focus-visible {
+  outline-color: rgba(50, 168, 82, 0.35);
+}
+
+.sim-composer-shell {
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.sim-composer-shell:focus-within {
+  border-color: var(--rule-strong);
+  box-shadow:
+    0 -14px 40px -32px rgba(17, 17, 17, 0.12),
+    0 0 0 1px rgba(50, 168, 82, 0.12);
+}
+
+.sim-root button:not(:disabled),
+.sim-root [role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+.sim-root :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.sim-root textarea:focus-visible {
+  outline-offset: 3px;
+  border-radius: 0.35rem;
+}
+
+.sim-mood-dot {
+  animation: sim-mood 1.4s ease-in-out infinite;
+}
+
+.sim-root .sim-btn-accent:focus-visible,
+.sim-root .sim-btn-muted:focus-visible,
+.sim-root .sim-btn-send-idle:focus-visible {
+  outline-offset: 3px;
+}
+
+.sim-composer-curve {
+  display: block;
+  width: 100%;
+  height: 1.125rem;
+  color: var(--field);
+}
+

@@ -1,5 +1,5 @@
-import { ProfileSettingsForm } from "@/app/settings/profile/profile-settings-form";
 import { MOCK_PROFILE } from "../_lib/settings-mock-data";
+import { ProfileSettingsForm } from "./profile-settings-form";
 
 export default function SettingsProfilePage() {
   return (

@@ -98,7 +98,7 @@ export function ProfileSettingsForm({ initial }: { initial: Initial }) {
         </button>
       </form>
 
-      <form onSubmit={onChangePassword} className="space-y-5 border-t border-[var(--rule)] pt-10">
+      <form id="password" onSubmit={onChangePassword} className="space-y-5 scroll-mt-24 border-t border-[var(--rule)] pt-10">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Password</h2>
         <div>
           <label htmlFor="cur" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">

@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { StudentProfileMenu } from "./student-profile-menu";
+
 const NAV = [
   { href: "/dashboard", label: "Home" },
   { href: "/scenarios", label: "Scenarios" },
   { href: "/sessions", label: "Sessions" },
   { href: "/assignments", label: "Assigned" },
+  { href: "/settings/profile", label: "Account" },
 ] as const;
 
 function NavLink({ href, label }: { href: string; label: string }) {
@@ -15,7 +18,9 @@ function NavLink({ href, label }: { href: string; label: string }) {
   const active =
     href === "/dashboard"
       ? pathname === "/dashboard"
-      : pathname === href || pathname.startsWith(`${href}/`);
+      : href.startsWith("/settings")
+        ? pathname.startsWith("/settings")
+        : pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
@@ -52,12 +57,6 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
           <p className="truncate text-[14px] font-medium tracking-[-0.02em] text-[#111111]">Learning workspace</p>
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href="/settings/profile"
-              className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
-            >
-              Settings
-            </Link>
-            <Link
               href="/login"
               className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
             >
@@ -78,13 +77,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
             <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)] sm:inline">
               Preview
             </span>
-            <div
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--field)] font-mono text-[10px] font-medium text-[var(--muted)]"
-              title="Account (wire auth)"
-              aria-hidden
-            >
-              ED
-            </div>
+            <StudentProfileMenu />
           </div>
         </header>
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>

@@ -370,8 +370,9 @@ Use the shared classes in `globals.css`:
 
 ### 7.10 Channel Modes (Future-Proofing)
 
-* **Live transcript (text):** chat-styled **glyph** + arc underline in header (lens-like arc = family resemblance to future **camera**; bubble = **this** channel is text).
-* **Voice / video (later):** swap the **mark + label** only (e.g. phone / camera icons); **do not** change the whole layout language per mode.
+* **Live transcript (text):** reference `app/simulation/[sessionId]/simulation-screen.tsx` — chat-styled **glyph** + arc underline in header (lens-like arc = family resemblance to future **camera**; bubble = **this** channel is text).
+* **Phone / voice:** reference `app/simulation/phone/[sessionId]/phone-simulation-screen.tsx` — light **chrome** (`--background`, `--surface`, rounded header) + **dark call stage** (`#1e1e1e`, large `rounded-[2rem]`) so the room reads as a **call surface**, not a transcript editor. Header pill uses **headset** + “Phone Call”; primary actions still use **`.sim-btn-accent`** (`#32a852`); **End call** is destructive red, separate from **End simulation**.
+* **Video:** reference `app/simulation/video/[sessionId]/video-simulation-screen.tsx` — same chrome + dark call stage as phone; header pill uses **camera/video** mark + “Video Call”. Prepare adds **camera** device alongside mic/speakers; live stage supports PiP, optional participant rail, mock screen-share picker + banner. Primary/destructive button rules unchanged.
 
 ---
 
@@ -379,7 +380,7 @@ Use the shared classes in `globals.css`:
 
 * **Stack:** Next.js App Router, **Tailwind CSS v4**, **no heavy UI kits** for core product surfaces unless explicitly approved.
 * **Tokens first:** new colors/spacing go through **`globals.css`** and `:root` / `@theme` where appropriate.
-* **Reuse patterns** from `app/simulation/[sessionId]/simulation-screen.tsx` before inventing parallel systems (composer, rails, header).
+* **Reuse patterns** from `app/simulation/[sessionId]/simulation-screen.tsx` (transcript), `app/simulation/phone/[sessionId]/phone-simulation-screen.tsx` (voice), and `app/simulation/video/[sessionId]/video-simulation-screen.tsx` (video) before inventing parallel systems (header chrome, `.sim-root`, buttons).
 * **Accessibility:** semantic headings, `aria-live` for system status where content streams, visible focus, sufficient contrast on green-on-white controls.
 
 ---

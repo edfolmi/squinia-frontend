@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { SimulationTeamFeedbackDialog } from "../_components/team-feedback-dialog";
+
 export type SimulationSessionMeta = {
   language: string;
   channel: string;
@@ -176,8 +178,8 @@ function IconLiveTranscriptMark({
   return (
     <svg
       className={className ?? ""}
-      width="40"
-      height="34"
+      width="32"
+      height="28"
       viewBox="0 0 40 34"
       fill="none"
       aria-hidden
@@ -202,8 +204,8 @@ function IconLiveTranscriptMark({
   );
 }
 
-function TranscriptArcUnderline({ active }: { active: boolean }) {
-  const stroke = active ? "#111111" : "var(--rule-strong)";
+function SimArcUnderline({ active }: { active: boolean }) {
+  const stroke = active ? "var(--rule-strong)" : "var(--rule-strong)";
   return (
     <svg
       className="mt-0.5"
@@ -265,7 +267,8 @@ export function SimulationScreen({
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("prepare");
-  const [sessionDrawerOpen, setSessionDrawerOpen] = useState(false);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode>("reply");
 
@@ -553,7 +556,7 @@ export function SimulationScreen({
   );
 
   return (
-    <div className="sim-root fixed inset-0 z-0 flex flex-col bg-[#FAFAF7] text-[#111111]">
+    <div className="sim-root relative flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--background)] text-[#111111]">
       {/* Top system bar — operational, not marketing chrome */}
       <header className="relative z-10 mx-2 mt-2 flex h-[52px] shrink-0 items-center gap-2 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] px-2 shadow-[0_6px_28px_-20px_rgba(17,17,17,0.14)] sm:mx-3 sm:px-4">
         <div className="flex items-center gap-1">
@@ -567,23 +570,23 @@ export function SimulationScreen({
           </button>
           <button
             type="button"
-            onClick={() => setSessionDrawerOpen(true)}
-            className="cursor-pointer rounded-lg px-2 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted)] underline-offset-4 hover:bg-[var(--field)] hover:text-[#111111] hover:underline lg:hidden"
+            onClick={() => setInfoPanelOpen(true)}
+            className="cursor-pointer rounded-lg px-2 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted)] underline-offset-4 hover:bg-[var(--field)] hover:text-[#111111] hover:underline sm:hidden"
           >
-            Session
+            View info
           </button>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center">
-          <div className="pointer-events-auto flex flex-col items-center gap-0.5">
-            <IconLiveTranscriptMark active={live} className="-mb-px" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-0 flex items-center justify-center">
+          <div className="pointer-events-auto flex flex-col items-center justify-center gap-0.5">
+            <span className="sr-only">Live transcript simulation</span>
+            <span className="-mb-px inline-flex leading-none" aria-hidden>
+              <IconLiveTranscriptMark active={live} />
+            </span>
             <span className="font-mono text-[10px] uppercase leading-none tracking-[0.26em] text-[var(--faint)]">
               {live ? "Live" : "Room"}
             </span>
-            <span className="text-[13px] font-medium leading-none tracking-[-0.02em] text-[#111111]">
-              Transcript
-            </span>
-            <TranscriptArcUnderline active={live} />
+            <SimArcUnderline active={live} />
           </div>
         </div>
 
@@ -595,18 +598,19 @@ export function SimulationScreen({
           ) : null}
           <button
             type="button"
-            className="hidden h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-transparent text-[var(--muted)] transition-colors hover:border-[var(--rule)] hover:text-[#111111] sm:flex"
-            title="Flag for review"
-            aria-label="Flag for review"
+            onClick={() => setFeedbackOpen(true)}
+            className="sim-transition flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-transparent text-[var(--muted)] transition-colors hover:border-[var(--rule)] hover:text-[#111111]"
+            title="Flag for team — send feedback"
+            aria-label="Flag for team — send feedback"
           >
             <IconFlag />
           </button>
           <button
             type="button"
-            onClick={() => setSessionDrawerOpen(true)}
-            className="hidden cursor-pointer rounded-lg px-2 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted)] underline-offset-4 hover:bg-[var(--field)] hover:text-[#111111] hover:underline sm:inline lg:hidden"
+            onClick={() => setInfoPanelOpen(true)}
+            className="sim-transition hidden cursor-pointer rounded-xl border border-[var(--rule)] px-3 py-2 text-[12px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] sm:inline"
           >
-            Context
+            View info
           </button>
           <button
             type="button"
@@ -619,17 +623,13 @@ export function SimulationScreen({
         </div>
       </header>
 
-      <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="hidden h-full min-h-0 shrink-0 border-[var(--rule)] lg:block lg:w-[min(100%,17rem)] lg:border-r">
-          <div className="h-full min-h-0 overflow-y-auto overscroll-y-contain">{personaRail}</div>
-        </aside>
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-0 sm:px-3 sm:pb-3">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[42rem] flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--surface)] shadow-[0_6px_36px_-18px_rgba(17,17,17,0.12)]">
           <main
             ref={centerRef}
-            className={`min-h-0 flex-1 overflow-y-auto border-[var(--rule)] lg:border-r ${live ? "sim-live-panel" : ""}`}
+            className={`min-h-0 flex-1 overflow-y-auto overscroll-y-contain scroll-smooth ${live ? "sim-live-panel" : ""}`}
           >
-            <div className="mx-auto max-w-[40rem] px-5 py-10 lg:px-12 lg:py-14">
+            <div className="px-5 py-8 sm:px-8 sm:py-10">
               {!live ? (
                 <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--faint)]">
                   Room
@@ -641,7 +641,7 @@ export function SimulationScreen({
               )}
 
               {live ? (
-                <ol className="mt-12 list-none p-0">
+                <ol className="mt-8 list-none p-0 sm:mt-10">
                   {lines.map((entry, i) => (
                     <li key={entry.id}>
                       {i > 0 ? <TranscriptRule /> : null}
@@ -738,16 +738,16 @@ export function SimulationScreen({
           </main>
 
           {live ? (
-            <div className="shrink-0 bg-[var(--background)] px-4 pb-5 pt-1 lg:px-10">
-              <div className="mx-auto w-full max-w-[40rem]">
+            <div className="shrink-0 border-t border-[var(--rule)] bg-[var(--field)]/50 px-3 pb-3 pt-2 sm:px-5 sm:pb-3 sm:pt-2.5">
+              <div className="w-full">
                 <ComposerTopCurve />
-                <div className="sim-composer-shell sim-transition -mt-[18px] rounded-b-[3rem] rounded-t-[1.5rem] border-x border-b border-[var(--rule)] bg-[var(--field)] px-5 pb-5 pt-5 shadow-[0_-16px_44px_-34px_rgba(17,17,17,0.11)] lg:px-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-0 overflow-hidden rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] font-mono text-[10px] uppercase tracking-[0.14em]">
+                <div className="sim-composer-shell sim-transition -mt-[10px] rounded-b-2xl rounded-t-xl border-x border-b border-[var(--rule)] bg-[var(--field)] px-3 pb-3 pt-2.5 shadow-[0_-10px_32px_-24px_rgba(17,17,17,0.1)] sm:px-4 sm:pb-3 sm:pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-0 overflow-hidden rounded-lg border border-[var(--rule-strong)] bg-[var(--surface)] font-mono text-[10px] uppercase tracking-[0.14em]">
                       <button
                         type="button"
                         onClick={() => setComposeMode("reply")}
-                        className={`rounded-l-xl px-3.5 py-2.5 transition-colors duration-200 ease-out ${
+                        className={`rounded-l-lg px-3 py-2 transition-colors duration-200 ease-out ${
                           composeMode === "reply"
                             ? "bg-[#32a852] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
                             : "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
@@ -758,7 +758,7 @@ export function SimulationScreen({
                       <button
                         type="button"
                         onClick={() => setComposeMode("note")}
-                        className={`rounded-r-xl border-l border-[var(--rule)] px-3.5 py-2.5 transition-colors duration-200 ease-out ${
+                        className={`rounded-r-lg border-l border-[var(--rule)] px-3 py-2 transition-colors duration-200 ease-out ${
                           composeMode === "note"
                             ? "bg-[#32a852] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
                             : "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
@@ -769,7 +769,7 @@ export function SimulationScreen({
                     </div>
                     <button
                       type="button"
-                      className="sim-transition rounded-xl px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)] underline-offset-4 transition-colors duration-200 ease-out hover:bg-[var(--surface)] hover:text-[#111111] hover:underline"
+                      className="sim-transition rounded-lg px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)] underline-offset-4 transition-colors duration-200 ease-out hover:bg-[var(--surface)] hover:text-[#111111] hover:underline"
                     >
                       Snippets
                     </button>
@@ -777,11 +777,11 @@ export function SimulationScreen({
                   <label htmlFor="sim-input" className="sr-only">
                     {composeMode === "note" ? "Private note" : "Your reply"}
                   </label>
-                  <div className="mt-4 rounded-t-[0.5rem] rounded-b-[2.75rem] border border-[var(--rule)] bg-[var(--surface)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+                  <div className="mt-2 rounded-lg border border-[var(--rule)] bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
                     <textarea
                       ref={composerInputRef}
                       id="sim-input"
-                      rows={4}
+                      rows={2}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -794,13 +794,13 @@ export function SimulationScreen({
                       disabled={sessionBusy}
                       placeholder={
                         composeMode === "note"
-                          ? "Capture a private note for after the session…"
-                          : "Type your response as you would in the room."
+                          ? "Private note…"
+                          : "Type a reply…"
                       }
-                      className="w-full resize-none border-0 bg-transparent font-sans text-[15px] leading-[1.65] tracking-[-0.01em] text-[#111111] placeholder:text-[var(--faint)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="max-h-[5.5rem] min-h-[2.5rem] w-full resize-none overflow-y-auto border-0 bg-transparent font-sans text-[15px] leading-[1.5] tracking-[-0.01em] text-[#111111] placeholder:text-[var(--faint)] disabled:cursor-not-allowed disabled:opacity-40 sm:max-h-[6.5rem]"
                     />
                   </div>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                  <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
                     <p className="mr-auto max-w-[min(100%,20rem)] font-mono text-[10px] leading-snug tracking-[0.06em] text-[var(--muted)] sm:order-first">
                       {sessionBusy
                         ? "Wait for the interviewer to finish."
@@ -814,7 +814,7 @@ export function SimulationScreen({
                       type="button"
                       disabled={sessionBusy || !draft.trim()}
                       onClick={() => pushUser(draft)}
-                      className={`min-w-[6.25rem] px-5 py-2.5 font-mono text-[10px] uppercase transition-opacity duration-200 ease-out ${
+                      className={`min-w-[5.5rem] px-4 py-2 font-mono text-[10px] uppercase transition-opacity duration-200 ease-out ${
                         sessionBusy
                           ? "sim-btn-muted"
                           : !draft.trim()
@@ -830,12 +830,6 @@ export function SimulationScreen({
             </div>
           ) : null}
         </div>
-
-        <aside className="hidden h-full min-h-0 shrink-0 flex-col border-l border-[var(--rule)] bg-[var(--surface)] lg:flex lg:w-[min(100%,20rem)]">
-          <div className="min-h-0 w-full flex-1 overflow-y-auto overscroll-y-contain">
-            {rail}
-          </div>
-        </aside>
       </div>
 
       {/* Prepare — editorial gate, no card */}
@@ -902,36 +896,46 @@ export function SimulationScreen({
         </div>
       ) : null}
 
-      {/* Session drawer — mobile / small tablet */}
-      {sessionDrawerOpen ? (
-        <div className="fixed inset-0 z-30 lg:hidden" role="dialog" aria-modal="true">
+      {/* Scenario + session rail — on demand (focus layout; same as phone/video “View info”) */}
+      {infoPanelOpen ? (
+        <div className="fixed inset-0 z-30" role="dialog" aria-modal="true" aria-labelledby="info-panel-title">
           <button
             type="button"
-            className="absolute inset-0 bg-[#111111]/20"
-            aria-label="Close session panel"
-            onClick={() => setSessionDrawerOpen(false)}
+            className="absolute inset-0 bg-[#111111]/25 backdrop-blur-[1px]"
+            aria-label="Close info panel"
+            onClick={() => setInfoPanelOpen(false)}
           />
-          <div className="absolute right-0 top-0 flex h-full w-[min(100%,22rem)] flex-col border-l border-[var(--rule)] bg-[var(--surface)] shadow-none">
-            <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--rule)] px-3">
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
-                Session
+          <div className="absolute right-0 top-0 flex h-full w-[min(100%,24rem)] flex-col border-l border-[var(--rule)] bg-[var(--surface)] shadow-[0_0_48px_-12px_rgba(0,0,0,0.18)]">
+            <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--rule)] px-4">
+              <span
+                id="info-panel-title"
+                className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]"
+              >
+                View info
               </span>
               <button
                 type="button"
-                onClick={() => setSessionDrawerOpen(false)}
+                onClick={() => setInfoPanelOpen(false)}
                 className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
                 aria-label="Close"
               >
                 <IconClose />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
               <div className="border-b border-[var(--rule)]">{personaRail}</div>
               {rail}
             </div>
           </div>
         </div>
       ) : null}
+
+      <SimulationTeamFeedbackDialog
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        kind="transcript"
+        sessionId={sessionId}
+      />
 
       {sessionEnded ? (
         <div

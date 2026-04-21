@@ -52,6 +52,12 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
           <p className="truncate text-[14px] font-medium tracking-[-0.02em] text-[#111111]">Learning workspace</p>
           <div className="flex shrink-0 items-center gap-2">
             <Link
+              href="/settings/profile"
+              className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
+            >
+              Settings
+            </Link>
+            <Link
               href="/login"
               className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
             >

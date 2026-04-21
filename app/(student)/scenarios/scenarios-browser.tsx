@@ -1,0 +1,125 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
+import { StartSimulationButton } from "../../simulation/_components/start-simulation-button";
+
+import type { Difficulty, PublishedScenario } from "../_lib/student-mock-data";
+import { PUBLISHED_SCENARIOS } from "../_lib/student-mock-data";
+
+const ROLES = ["All roles", ...Array.from(new Set(PUBLISHED_SCENARIOS.map((s) => s.role)))];
+const DIFFICULTIES: ("All levels" | Difficulty)[] = ["All levels", "Beginner", "Medium", "Advanced"];
+
+function kindLabel(kind: PublishedScenario["kind"]) {
+  switch (kind) {
+    case "chat":
+      return "Transcript";
+    case "phone":
+      return "Phone";
+    case "video":
+      return "Video";
+    default:
+      return kind;
+  }
+}
+
+export function ScenariosBrowser() {
+  const [role, setRole] = useState("All roles");
+  const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>("All levels");
+
+  const filtered = useMemo(() => {
+    return PUBLISHED_SCENARIOS.filter((s) => {
+      if (role !== "All roles" && s.role !== role) return false;
+      if (difficulty !== "All levels" && s.difficulty !== difficulty) return false;
+      return true;
+    });
+  }, [role, difficulty]);
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
+        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+          Published practice rooms. Each start opens a fresh attempt with a unique session id so feedback reports
+          never overwrite each other. Filters are local for this preview.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-[12rem] flex-1">
+          <label htmlFor="filter-role" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+            Role
+          </label>
+          <select
+            id="filter-role"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="sim-transition w-full cursor-pointer rounded-xl border border-[var(--rule-strong)] bg-[var(--field)] px-3 py-2.5 text-[14px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+          >
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-[12rem] flex-1">
+          <label
+            htmlFor="filter-difficulty"
+            className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]"
+          >
+            Difficulty
+          </label>
+          <select
+            id="filter-difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as (typeof DIFFICULTIES)[number])}
+            className="sim-transition w-full cursor-pointer rounded-xl border border-[var(--rule-strong)] bg-[var(--field)] px-3 py-2.5 text-[14px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+          >
+            {DIFFICULTIES.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-[13px] text-[var(--muted)] sm:ml-auto sm:pb-2">
+          {filtered.length} scenario{filtered.length === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      <ul className="grid gap-4 sm:grid-cols-2">
+        {filtered.map((s) => (
+          <li
+            key={s.id}
+            className="flex flex-col rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)]"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                {kindLabel(s.kind)}
+              </span>
+              <span className="rounded-full bg-[#e6f4ea]/90 px-2.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-[#166534]">
+                {s.difficulty}
+              </span>
+            </div>
+            <h2 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-[#111111]">{s.title}</h2>
+            <p className="mt-2 flex-1 text-[14px] leading-relaxed text-[var(--muted)]">{s.summary}</p>
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">{s.role}</p>
+            <p className="mt-1 text-[12px] text-[var(--muted)]">~{s.estMinutes} min</p>
+            <StartSimulationButton
+              scenarioId={s.id}
+              kind={s.kind}
+              className="sim-btn-accent mt-6 w-full py-3 text-center font-mono text-[10px] uppercase"
+            >
+              Start new attempt
+            </StartSimulationButton>
+          </li>
+        ))}
+      </ul>
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-[14px] text-[var(--muted)]">No scenarios match these filters.</p>
+      ) : null}
+    </div>
+  );
+}

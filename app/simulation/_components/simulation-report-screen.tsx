@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { parseAttemptSessionId } from "../_lib/attempt-id";
 import {
   type CompetencyBlock,
   type SessionReportStored,
@@ -225,6 +226,12 @@ export function SimulationReportScreen({
   const titleShort =
     title.length > 36 ? `${title.slice(0, 33).trimEnd()}…` : title;
 
+  const attemptLabel = useMemo(() => {
+    const { attemptToken } = parseAttemptSessionId(sessionId);
+    if (!attemptToken) return null;
+    return `Attempt · ${attemptToken.slice(0, 14)}`;
+  }, [sessionId]);
+
   const endedLabel = useMemo(() => {
     if (!effectiveReport?.endedAt) return "";
     try {
@@ -274,7 +281,7 @@ export function SimulationReportScreen({
         </p>
         <button
           type="button"
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/dashboard")}
           className="sim-btn-accent self-start px-6 py-3 font-mono text-[11px] uppercase"
         >
           Go home
@@ -297,15 +304,20 @@ export function SimulationReportScreen({
       <header className="sticky top-0 z-20 flex h-[52px] shrink-0 items-center gap-3 border-b border-[var(--rule)] bg-[var(--surface)]/95 px-3 backdrop-blur-sm sm:px-5">
         <button
           type="button"
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/dashboard")}
           className="sim-transition flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-[var(--rule)] bg-transparent hover:bg-[var(--field)]"
           aria-label="Back"
         >
           <IconBack />
         </button>
-        <h1 className="min-w-0 flex-1 truncate text-center text-[14px] font-medium tracking-[-0.02em] sm:text-[15px]">
-          {titleShort}
-        </h1>
+        <div className="min-w-0 flex-1 truncate text-center">
+          <h1 className="truncate text-[14px] font-medium tracking-[-0.02em] sm:text-[15px]">{titleShort}</h1>
+          {attemptLabel ? (
+            <p className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">
+              {attemptLabel}
+            </p>
+          ) : null}
+        </div>
         <div className="relative shrink-0" ref={menuRef}>
           <button
             type="button"

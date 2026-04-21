@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { getChatRuntimeProps } from "../_lib/scenario-library";
 import { SimulationScreen } from "./simulation-screen";
 
 export const metadata: Metadata = {
@@ -12,23 +14,16 @@ export default async function SimulationPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
+  const props = getChatRuntimeProps(sessionId);
 
   return (
     <SimulationScreen
       sessionId={sessionId}
-      personaName="Julia Merrick"
-      personaTitle="Technical team lead"
-      scenarioTitle="Weekly update for leadership"
-      learnerName="Ephraim Daniel"
-      meta={{
-        language: "English",
-        channel: "Live transcript",
-        difficulty: "Medium",
-        scorecard: "Behavioral capstone",
-        learnerRole: "AI engineer — learner",
-        learnerContext: "2025-02 · AI engineering bootcamp",
-        personaBlurb: "Mid-20s technical lead, direct, fair, and pressed for time.",
-      }}
+      personaName={props.personaName}
+      personaTitle={props.personaTitle}
+      scenarioTitle={props.scenarioTitle}
+      learnerName={props.learnerName}
+      meta={props.meta}
     />
   );
 }

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { getPhoneRuntimeProps } from "../../_lib/scenario-library";
 import { PhoneSimulationScreen } from "./phone-simulation-screen";
 
 export const metadata: Metadata = {
@@ -12,14 +14,15 @@ export default async function PhoneSimulationPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
+  const props = getPhoneRuntimeProps(sessionId);
 
   return (
     <PhoneSimulationScreen
       sessionId={sessionId}
-      scenarioTitle="Weekly update check-in"
-      callerName="Matty"
-      callerNumber="+1 (573) 425-7038"
-      learnerName="Ephraim"
+      scenarioTitle={props.scenarioTitle}
+      callerName={props.callerName}
+      callerNumber={props.callerNumber}
+      learnerName={props.learnerName}
     />
   );
 }

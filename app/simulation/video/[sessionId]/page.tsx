@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+import { getVideoRuntimeProps } from "../../_lib/scenario-library";
 import { VideoSimulationScreen } from "./video-simulation-screen";
 
 export const metadata: Metadata = {
@@ -12,15 +14,16 @@ export default async function VideoSimulationPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
+  const props = getVideoRuntimeProps(sessionId);
 
   return (
     <VideoSimulationScreen
       sessionId={sessionId}
-      scenarioTitle="Stakeholder video review"
-      remoteName="Geet Huberman"
-      remoteRole="Executive interviewer"
-      learnerName="Ephraim"
-      personaBlurb="Direct, time-boxed, and listening for structure under pressure. This room uses your real camera and microphone — nothing is uploaded until you wire the API."
+      scenarioTitle={props.scenarioTitle}
+      remoteName={props.remoteName}
+      remoteRole={props.remoteRole}
+      learnerName={props.learnerName}
+      personaBlurb={props.personaBlurb}
     />
   );
 }

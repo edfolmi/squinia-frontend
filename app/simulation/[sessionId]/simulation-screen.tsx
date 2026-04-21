@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { buildStoredChatReport, saveSessionReport } from "../_lib/session-report";
 import { SimulationTeamFeedbackDialog } from "../_components/team-feedback-dialog";
 
 export type SimulationSessionMeta = {
@@ -257,19 +258,20 @@ export function SimulationScreen({
   personaName,
   personaTitle,
   scenarioTitle,
+  learnerName,
   meta,
 }: {
   sessionId: string;
   personaName: string;
   personaTitle: string;
   scenarioTitle: string;
+  learnerName: string;
   meta: SimulationSessionMeta;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("prepare");
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [sessionEnded, setSessionEnded] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode>("reply");
 
   const [lines, setLines] = useState<TranscriptEntry[]>(INITIAL);
@@ -288,7 +290,7 @@ export function SimulationScreen({
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const elapsedRef = useRef(0);
 
-  const live = phase === "live" && !sessionEnded;
+  const live = phase === "live";
   const sessionBusy = aiTyping || aiStream !== null;
   const initials = useMemo(() => initialsFrom(personaName), [personaName]);
 
@@ -436,8 +438,23 @@ export function SimulationScreen({
 
   function requestEndSession() {
     if (!live) return;
-    const ok = window.confirm("End this simulation? Progress stays in this session until the API is connected.");
-    if (ok) setSessionEnded(true);
+    const ok = window.confirm(
+      "End this simulation? You will open your session report with transcript and evaluation.",
+    );
+    if (!ok) return;
+    const payload = buildStoredChatReport({
+      sessionId,
+      scenarioTitle,
+      learnerName,
+      interviewerName: personaName,
+      interviewerTitle: personaTitle,
+      scorecardLabel: meta.scorecard,
+      lines,
+      elapsedSec: elapsed,
+    });
+    void saveSessionReport(payload).then(() => {
+      router.push(`/simulation/${sessionId}/report?kind=chat`);
+    });
   }
 
   const rail = (
@@ -937,37 +954,6 @@ export function SimulationScreen({
         sessionId={sessionId}
       />
 
-      {sessionEnded ? (
-        <div
-          className="sim-fade-in absolute inset-0 z-40 flex items-center justify-center bg-[#FAFAF7]/96 px-6"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="end-title"
-        >
-          <div className="w-full max-w-md text-center">
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">
-              Session
-            </p>
-            <h2
-              id="end-title"
-              className="mt-4 font-sans text-2xl font-normal tracking-[-0.03em] text-[#111111]"
-            >
-              Simulation closed
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
-              Wire <span className="font-mono text-[11px]">{sessionShort}</span> to your API to
-              persist outcomes, evaluations, and next steps.
-            </p>
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="sim-btn-accent mt-10 px-7 py-3.5 font-mono text-[11px] uppercase"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

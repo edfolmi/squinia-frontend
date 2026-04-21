@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
+import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
 type Phase = "prepare" | "micTest" | "loading" | "live";
@@ -242,6 +243,7 @@ export function VideoSimulationScreen({
   remoteRole,
   learnerName,
   personaBlurb,
+  scorecardLabel = "Behavioral capstone",
 }: {
   sessionId: string;
   scenarioTitle: string;
@@ -249,11 +251,13 @@ export function VideoSimulationScreen({
   remoteRole?: string;
   learnerName: string;
   personaBlurb?: string;
+  scorecardLabel?: string;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("prepare");
   const [infoOpen, setInfoOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
   const [micIndex, setMicIndex] = useState(0);
   const [camIndex, setCamIndex] = useState(0);
   const [speakerIndex, setSpeakerIndex] = useState(0);
@@ -271,17 +275,6 @@ export function VideoSimulationScreen({
     () => (sessionId.length > 10 ? `${sessionId.slice(0, 6)}…` : sessionId),
     [sessionId],
   );
-
-  const recordingUrl = useMemo(() => {
-    if (!media.recordedBlob || media.recordedBlob.size === 0) return null;
-    return URL.createObjectURL(media.recordedBlob);
-  }, [media.recordedBlob]);
-
-  useEffect(() => {
-    return () => {
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
-    };
-  }, [recordingUrl]);
 
   useEffect(() => {
     if (phase !== "micTest") return;
@@ -391,13 +384,43 @@ export function VideoSimulationScreen({
   const videoOn = Boolean(media.cameraStream?.getVideoTracks()[0]?.enabled);
   const micOn = Boolean(media.cameraStream?.getAudioTracks()[0]?.enabled);
 
-  function requestEndSimulation() {
-    if (window.confirm("End this simulation? Camera and screen capture will stop.")) {
-      media.stopCamera();
+  async function requestEndSimulation() {
+    if (
+      !window.confirm(
+        "End this simulation? Capture will stop and your session report will open with replay and downloads.",
+      )
+    ) {
+      return;
+    }
+    setSavingReport(true);
+    try {
+      const blob = await media.finalizeRecording();
       media.stopScreen();
-      media.stopRecording();
+      media.stopCamera();
+      const payload = buildStoredVideoReport({
+        sessionId,
+        scenarioTitle,
+        learnerName,
+        remoteName,
+        remoteRole: remoteRole ?? "Interviewer",
+        callElapsedSec: phase === "live" ? callElapsed : 0,
+        scorecardLabel,
+        recording: blob,
+        recordingMime: blob?.type,
+      });
+      try {
+        await saveSessionReport(payload);
+      } catch {
+        await saveSessionReport({
+          ...payload,
+          recording: undefined,
+          recordingMime: undefined,
+        });
+      }
       setPhase("prepare");
-      router.back();
+      router.push(`/simulation/${sessionId}/report?kind=video`);
+    } finally {
+      setSavingReport(false);
     }
   }
 
@@ -467,10 +490,11 @@ export function VideoSimulationScreen({
           </button>
           <button
             type="button"
-            onClick={requestEndSimulation}
-            className="sim-btn-accent rounded-xl px-4 py-2.5 font-mono text-[10px] uppercase sm:px-5"
+            disabled={savingReport}
+            onClick={() => void requestEndSimulation()}
+            className="sim-btn-accent rounded-xl px-4 py-2.5 font-mono text-[10px] uppercase sm:px-5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            End simulation
+            {savingReport ? "Saving…" : "End simulation"}
           </button>
         </div>
       </header>
@@ -794,15 +818,9 @@ export function VideoSimulationScreen({
                       Recording
                     </p>
                   ) : null}
-                  {recordingUrl ? (
-                    <a
-                      href={recordingUrl}
-                      download={`squinia-session-${sessionShort}.webm`}
-                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#7ddf9a] underline decoration-[#32a852]/50 underline-offset-4 hover:text-[#a8f5c4]"
-                    >
-                      Download last clip
-                    </a>
-                  ) : null}
+                  <p className="max-w-xs font-mono text-[10px] uppercase leading-snug tracking-[0.14em] text-white/40">
+                    End simulation to open your report — replay and downloads are there.
+                  </p>
                   <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-white/40">
                     Session {sessionShort} · {learnerName}
                   </p>
@@ -867,8 +885,8 @@ export function VideoSimulationScreen({
                 ) : (
                   <p className="mt-6 text-[14px] leading-[1.65] text-[var(--muted)]">
                     This room uses your real camera, microphone, and optional screen capture. Recording
-                    runs automatically while you are in the call; the file stays in your browser until
-                    you connect an upload API.
+                    runs automatically while you are in the call; when you end the simulation, open your
+                    report to replay and download.
                   </p>
                 )}
               </section>

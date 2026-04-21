@@ -19,6 +19,7 @@ export default async function SimulationPage({
       personaName="Julia Merrick"
       personaTitle="Technical team lead"
       scenarioTitle="Weekly update for leadership"
+      learnerName="Ephraim Daniel"
       meta={{
         language: "English",
         channel: "Live transcript",

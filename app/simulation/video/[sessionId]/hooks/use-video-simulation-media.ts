@@ -113,6 +113,8 @@ export function useVideoSimulationMedia(options: UseVideoSimulationMediaOptions 
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<MediaSimError>(null);
 
+  /** Mirrors `recordedBlob` for async finalize after `MediaRecorder.stop()` without waiting on React. */
+  const recordedBlobRef = useRef<Blob | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -313,6 +315,7 @@ export function useVideoSimulationMedia(options: UseVideoSimulationMediaOptions 
         const blobType = mime?.split(";")[0] || rec.mimeType || "video/webm";
         const blob = new Blob(chunksRef.current, { type: blobType });
         chunksRef.current = [];
+        recordedBlobRef.current = blob;
         setRecordedBlob(blob);
         onRecordingComplete?.(blob);
         setRecording(false);
@@ -340,7 +343,34 @@ export function useVideoSimulationMedia(options: UseVideoSimulationMediaOptions 
   }, [stopRecorder]);
 
   const discardRecording = useCallback(() => {
+    recordedBlobRef.current = null;
     setRecordedBlob(null);
+  }, []);
+
+  /**
+   * Stops the recorder if active and waits until the final blob is available (or gives up).
+   * Call before tearing down camera/screen so the last segment is flushed.
+   */
+  const finalizeRecording = useCallback(async (): Promise<Blob | null> => {
+    const r = recorderRef.current;
+    if (r && r.state !== "inactive") {
+      try {
+        r.stop();
+      } catch {
+        recorderRef.current = null;
+        setRecording(false);
+      }
+    }
+    for (let i = 0; i < 60; i++) {
+      await new Promise((res) => {
+        window.setTimeout(res, 50);
+      });
+      const b = recordedBlobRef.current;
+      if (b && b.size > 0) return b;
+      if (!recorderRef.current && i > 4) break;
+    }
+    const b = recordedBlobRef.current;
+    return b && b.size > 0 ? b : null;
   }, []);
 
   /** Re-wrap tracks in a new MediaStream so React updates bound `<video>` elements. */
@@ -395,6 +425,7 @@ export function useVideoSimulationMedia(options: UseVideoSimulationMediaOptions 
     startRecording,
     stopRecording,
     discardRecording,
+    finalizeRecording,
     toggleCameraVideo,
     toggleCameraMic,
   };

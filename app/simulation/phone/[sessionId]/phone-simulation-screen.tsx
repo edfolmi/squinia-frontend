@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
+import { buildStoredPhoneReport, saveSessionReport } from "../../_lib/session-report";
+import { usePhoneSimulationAudio } from "./hooks/use-phone-simulation-audio";
 
 type Phase = "prepare" | "micTest" | "loading" | "live";
 
@@ -217,12 +219,14 @@ export function PhoneSimulationScreen({
   callerName,
   callerNumber,
   learnerName,
+  scorecardLabel = "Behavioral capstone",
 }: {
   sessionId: string;
   scenarioTitle?: string;
   callerName: string;
   callerNumber: string;
   learnerName: string;
+  scorecardLabel?: string;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("prepare");
@@ -233,6 +237,28 @@ export function PhoneSimulationScreen({
   const [callElapsed, setCallElapsed] = useState(0);
   const [volumeLevel, setVolumeLevel] = useState(4);
   const [muted, setMuted] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
+
+  const audio = usePhoneSimulationAudio();
+
+  useEffect(() => {
+    if (phase !== "live") return;
+    let cancelled = false;
+    void (async () => {
+      await audio.startPipeline();
+      if (cancelled) audio.resetPipeline();
+    })();
+    return () => {
+      cancelled = true;
+      audio.resetPipeline();
+    };
+  }, [phase, audio.startPipeline, audio.resetPipeline]);
+
+  useEffect(() => {
+    const t = audio.micStream?.getAudioTracks()[0];
+    if (!t) return;
+    t.enabled = !muted;
+  }, [muted, audio.micStream]);
 
   useEffect(() => {
     if (phase !== "micTest") return;
@@ -265,14 +291,45 @@ export function PhoneSimulationScreen({
     return `${m}:${s}`;
   }
 
-  function requestEndSimulation() {
-    const ok = window.confirm("End this simulation?");
-    if (ok) router.back();
+  async function requestEndSimulation() {
+    const ok = window.confirm(
+      "End this simulation? Your microphone capture will stop and your session report will open with audio replay when available.",
+    );
+    if (!ok) return;
+    setSavingReport(true);
+    try {
+      const blob = phase === "live" ? await audio.finalizeRecording() : null;
+      audio.resetPipeline();
+      const payload = buildStoredPhoneReport({
+        sessionId,
+        scenarioTitle,
+        learnerName,
+        callerName,
+        callerSubtitle: callerNumber,
+        callElapsedSec: phase === "live" ? callElapsed : 0,
+        scorecardLabel,
+        recording: blob,
+        recordingMime: blob?.type,
+      });
+      try {
+        await saveSessionReport(payload);
+      } catch {
+        await saveSessionReport({
+          ...payload,
+          recording: undefined,
+          recordingMime: undefined,
+        });
+      }
+      router.push(`/simulation/${sessionId}/report?kind=phone`);
+    } finally {
+      setSavingReport(false);
+    }
   }
 
   function requestEndCall() {
     const ok = window.confirm("End this call?");
     if (!ok) return;
+    audio.resetPipeline();
     setPhase("prepare");
     setCallElapsed(0);
   }
@@ -339,10 +396,11 @@ export function PhoneSimulationScreen({
           </button>
           <button
             type="button"
-            onClick={requestEndSimulation}
-            className="sim-btn-accent rounded-xl px-4 py-2.5 font-mono text-[10px] uppercase sm:px-5"
+            disabled={savingReport}
+            onClick={() => void requestEndSimulation()}
+            className="sim-btn-accent rounded-xl px-4 py-2.5 font-mono text-[10px] uppercase sm:px-5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            End simulation
+            {savingReport ? "Saving…" : "End simulation"}
           </button>
         </div>
       </header>
@@ -515,29 +573,54 @@ export function PhoneSimulationScreen({
                     Muted
                   </p>
                 ) : null}
+                {audio.recording ? (
+                  <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-300/90">
+                    Recording your line
+                  </p>
+                ) : null}
+                <p className="mt-4 max-w-sm text-[12px] leading-relaxed text-white/45">
+                  Your microphone is captured in-browser for replay after you end the simulation.
+                </p>
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 pb-10 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setMuted((m) => !m)}
-                  className={`sim-transition flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl border transition-colors ${
-                    muted
-                      ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
-                      : "border-white/15 bg-white text-[#1e1e1e] hover:bg-white/90"
-                  }`}
-                  aria-pressed={muted}
-                  aria-label={muted ? "Unmute" : "Mute"}
-                >
-                  <IconMic />
-                </button>
-                <button
-                  type="button"
-                  onClick={requestEndCall}
-                  className="sim-transition cursor-pointer rounded-2xl bg-[#dc2626] px-8 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-[0_8px_24px_-8px_rgba(220,38,38,0.5)] hover:bg-[#b91c1c]"
-                >
-                  End call
-                </button>
+              <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center gap-3 px-4 pb-10 pt-4">
+                {audio.errorMessage ? (
+                  <div
+                    className="max-w-md rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-2 text-center text-[12px] text-amber-50"
+                    role="alert"
+                  >
+                    {audio.errorMessage}{" "}
+                    <button
+                      type="button"
+                      onClick={() => audio.clearError()}
+                      className="font-medium text-white underline underline-offset-2"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setMuted((m) => !m)}
+                    className={`sim-transition flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl border transition-colors ${
+                      muted
+                        ? "border-amber-400/50 bg-amber-500/20 text-amber-100"
+                        : "border-white/15 bg-white text-[#1e1e1e] hover:bg-white/90"
+                    }`}
+                    aria-pressed={muted}
+                    aria-label={muted ? "Unmute" : "Mute"}
+                  >
+                    <IconMic />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestEndCall}
+                    className="sim-transition cursor-pointer rounded-2xl bg-[#dc2626] px-8 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-[0_8px_24px_-8px_rgba(220,38,38,0.5)] hover:bg-[#b91c1c]"
+                  >
+                    End call
+                  </button>
+                </div>
               </div>
 
               <p className="pointer-events-none absolute bottom-10 right-10 text-[14px] font-semibold text-white/90">
@@ -597,8 +680,9 @@ export function PhoneSimulationScreen({
                 <p className="mt-1 font-mono text-[13px] text-[var(--muted)]">{callerNumber}</p>
                 <p className="mt-6 text-[14px] leading-relaxed text-[var(--muted)]">
                   You are signed in as{" "}
-                  <span className="font-medium text-[#111111]">{learnerName}</span>. Mic and speaker
-                  checks are local only until device APIs are connected.
+                  <span className="font-medium text-[#111111]">{learnerName}</span>. While live, your
+                  microphone is recorded in this browser for the session report; speaker checks stay
+                  local until you wire device APIs.
                 </p>
               </section>
               <p className="mt-10 font-mono text-[10px] tracking-[0.14em] text-[var(--faint)]">

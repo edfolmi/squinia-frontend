@@ -32,6 +32,12 @@ export function InstructorAppShell({ children }: { children: React.ReactNode }) 
           </Link>
           <p className="text-[11px] text-[var(--muted)]">Instructor</p>
           <Link
+            href="/org/cohorts"
+            className="text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline"
+          >
+            Org dashboard
+          </Link>
+          <Link
             href="/dashboard"
             className="text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline"
           >

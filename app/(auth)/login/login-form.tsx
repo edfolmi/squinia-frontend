@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
 import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authLogin } from "../_lib/auth-api";
+import { authApiConfigured, authLogin, setSessionFromLoginData } from "../_lib/auth-api";
 
 export function LoginForm() {
   const router = useRouter();
@@ -23,6 +23,7 @@ export function LoginForm() {
     try {
       const res = await authLogin({ email: email.trim(), password });
       if (res.ok) {
+        setSessionFromLoginData(res.data);
         router.push("/onboarding");
         router.refresh();
         return;
@@ -75,7 +76,7 @@ export function LoginForm() {
       {!authApiConfigured() ? (
         <p className="text-center text-[12px] leading-relaxed text-[var(--faint)]">
           Auth API URL not set. Sign in will show an error unless you configure{" "}
-          <span className="font-mono text-[11px]">NEXT_PUBLIC_AUTH_API_BASE</span>.
+          <span className="font-mono text-[11px]">NEXT_PUBLIC_API_BASE</span>.
         </p>
       ) : null}
       <PreviewContinue href="/onboarding" label="Skip to onboarding (preview)" />

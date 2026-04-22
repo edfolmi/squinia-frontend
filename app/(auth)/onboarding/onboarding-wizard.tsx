@@ -75,10 +75,12 @@ export function OnboardingWizard() {
     }
     setLoading(true);
     try {
+      const w = Number.parseInt(weeks, 10);
       const res = await authCompleteOnboarding({
         role: "admin",
         cohortName: cohortName.trim(),
         cohortDescription: cohortDesc.trim() || undefined,
+        ...(Number.isFinite(w) && w >= 1 && w <= 52 ? { programLengthWeeks: w } : {}),
       });
       if (res.ok || !authApiConfigured()) {
         router.push("/org/cohorts");

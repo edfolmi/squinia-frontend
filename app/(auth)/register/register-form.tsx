@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
 import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authRegister } from "../_lib/auth-api";
+import { authApiConfigured, authLogin, authRegister, setSessionFromLoginData } from "../_lib/auth-api";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -36,6 +36,13 @@ export function RegisterForm() {
         fullName: fullName.trim(),
       });
       if (res.ok) {
+        const loginRes = await authLogin({ email: email.trim(), password });
+        if (loginRes.ok) {
+          setSessionFromLoginData(loginRes.data);
+          router.push("/onboarding");
+          router.refresh();
+          return;
+        }
         router.push("/verify-email?sent=1");
         return;
       }
@@ -113,7 +120,7 @@ export function RegisterForm() {
       </button>
       {!authApiConfigured() ? (
         <p className="text-center text-[12px] text-[var(--faint)]">
-          Without <span className="font-mono text-[11px]">NEXT_PUBLIC_AUTH_API_BASE</span>, registration returns an error.
+          Without <span className="font-mono text-[11px]">NEXT_PUBLIC_API_BASE</span>, registration returns an error.
         </p>
       ) : null}
       <PreviewContinue href="/verify-email?sent=1" label="Preview: go to verify-email screen" />

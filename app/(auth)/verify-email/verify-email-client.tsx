@@ -88,7 +88,9 @@ export function VerifyEmailClient({ initialToken, sent }: Props) {
       </p>
       <PreviewContinue href="/login" label="Preview: continue to sign in" />
       {!authApiConfigured() ? (
-        <p className="text-center text-[12px] text-[var(--faint)]">Configure API base to POST tokens to your backend.</p>
+        <p className="text-center text-[12px] text-[var(--faint)]">
+          Set <span className="font-mono text-[11px]">NEXT_PUBLIC_API_BASE</span> when the verify-email route exists on the API.
+        </p>
       ) : null}
     </div>
   );

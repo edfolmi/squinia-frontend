@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
 import { PreviewContinue } from "../_components/preview-continue";
-import { authAcceptInvite, authApiConfigured } from "../_lib/auth-api";
+import { authAcceptInvite, authApiConfigured, setSessionFromLoginData } from "../_lib/auth-api";
 
 type Props = {
   initialToken: string;
@@ -48,7 +48,9 @@ export function AcceptInviteForm({ initialToken, orgName }: Props) {
         fullName: fullName.trim() || undefined,
       });
       if (res.ok) {
+        setSessionFromLoginData(res.data);
         router.push("/onboarding?role=admin");
+        router.refresh();
         return;
       }
       if (!authApiConfigured()) {

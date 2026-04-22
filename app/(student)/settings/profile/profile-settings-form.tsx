@@ -3,9 +3,11 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+import { v1 } from "@/app/_lib/v1-client";
+
 type Initial = { fullName: string; email: string };
 
-export function ProfileSettingsForm({ initial }: { initial: Initial }) {
+export function ProfileSettingsForm({ userId, initial }: { userId: string; initial: Initial }) {
   const [fullName, setFullName] = useState(initial.fullName);
   const [email] = useState(initial.email);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -15,18 +17,27 @@ export function ProfileSettingsForm({ initial }: { initial: Initial }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  function onSaveProfile(e: FormEvent) {
+  async function onSaveProfile(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (!userId) { setError("Not signed in."); return; }
     setLoading(true);
-    window.setTimeout(() => {
-      setMessage("Preview — profile not saved to a server.");
+    try {
+      const res = await v1.patch<{ user: { full_name: string } }>(`auth/users/${userId}`, {
+        full_name: fullName,
+      });
+      if (res.ok) {
+        setMessage("Profile updated.");
+      } else {
+        setError(res.message);
+      }
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }
 
-  function onChangePassword(e: FormEvent) {
+  async function onChangePassword(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setMessage(null);
@@ -44,14 +55,23 @@ export function ProfileSettingsForm({ initial }: { initial: Initial }) {
         return;
       }
     }
+    if (!userId) { setError("Not signed in."); return; }
     setLoading(true);
-    window.setTimeout(() => {
-      setMessage("Preview — use your auth API’s password change endpoint.");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
+    try {
+      const res = await v1.patch<{ user: unknown }>(`auth/users/${userId}`, {
+        password: newPassword,
+      });
+      if (res.ok) {
+        setMessage("Password updated.");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setError(res.message);
+      }
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }
 
   return (
@@ -87,7 +107,7 @@ export function ProfileSettingsForm({ initial }: { initial: Initial }) {
             readOnly
             className="w-full cursor-not-allowed rounded-xl border border-[var(--rule)] bg-[var(--field)]/80 px-4 py-3 text-[15px] text-[var(--muted)] outline-none"
           />
-          <p className="mt-1 text-[12px] text-[var(--faint)]">Email changes usually require verification — wire your auth provider.</p>
+          <p className="mt-1 text-[12px] text-[var(--faint)]">Email changes require re-verification.</p>
         </div>
         <button
           type="submit"

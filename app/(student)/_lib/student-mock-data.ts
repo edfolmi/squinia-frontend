@@ -69,8 +69,11 @@ export type RecentSessionRow = {
   sessionId: string;
   kind: SimulationKind;
   scenarioTitle: string;
-  score: number;
+  /** Null when the API list does not include evaluation scores. */
+  score: number | null;
   endedAt: string;
+  /** Real scenario UUID from API — used for grouping when ``sessionId`` is not ``slug__token`` shaped. */
+  apiScenarioId?: string;
 };
 
 export const RECENT_SESSIONS: RecentSessionRow[] = [

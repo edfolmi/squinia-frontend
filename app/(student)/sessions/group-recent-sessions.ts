@@ -12,8 +12,9 @@ export type SessionScenarioGroup = {
 export function groupRecentSessionsByScenario(rows: RecentSessionRow[]): SessionScenarioGroup[] {
   const map = new Map<string, RecentSessionRow[]>();
   for (const row of rows) {
-    const { scenarioId } = parseAttemptSessionId(row.sessionId);
-    const key = `${scenarioId}::${row.kind}`;
+    const parsed = parseAttemptSessionId(row.sessionId);
+    const scenarioIdForKey = row.apiScenarioId ?? parsed.scenarioId;
+    const key = `${scenarioIdForKey}::${row.kind}`;
     const list = map.get(key);
     if (list) list.push(row);
     else map.set(key, [row]);
@@ -28,7 +29,7 @@ export function groupRecentSessionsByScenario(rows: RecentSessionRow[]): Session
     if (!first) continue;
     groups.push({
       groupKey,
-      scenarioId: scenarioId ?? first.sessionId,
+      scenarioId: first.apiScenarioId ?? scenarioId ?? first.sessionId,
       scenarioTitle: first.scenarioTitle,
       kind,
       attempts,

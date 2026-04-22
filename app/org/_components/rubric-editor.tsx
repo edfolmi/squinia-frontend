@@ -2,14 +2,14 @@
 
 import { useMemo } from "react";
 
-import type { OrgRubricItem } from "../_lib/org-mock-data";
+export type RubricItem = { id: string; label: string; description: string; weight: number; order: number };
 
 type Props = {
-  items: OrgRubricItem[];
-  onChange: (next: OrgRubricItem[]) => void;
+  items: RubricItem[];
+  onChange: (next: RubricItem[]) => void;
 };
 
-function reorder(list: OrgRubricItem[], from: number, to: number): OrgRubricItem[] {
+function reorder(list: RubricItem[], from: number, to: number): RubricItem[] {
   const copy = [...list].sort((a, b) => a.order - b.order);
   const [removed] = copy.splice(from, 1);
   if (!removed) return list;
@@ -21,7 +21,7 @@ export function RubricEditor({ items, onChange }: Props) {
   const sorted = useMemo(() => [...items].sort((a, b) => a.order - b.order), [items]);
   const totalWeight = sorted.reduce((s, r) => s + r.weight, 0) || 1;
 
-  function update(id: string, patch: Partial<OrgRubricItem>) {
+  function update(id: string, patch: Partial<RubricItem>) {
     onChange(items.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 

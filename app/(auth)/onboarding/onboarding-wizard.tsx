@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
 import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authCompleteOnboarding } from "../_lib/auth-api";
+import { authCompleteOnboarding } from "../_lib/auth-api";
 
 const STUDENT_GOALS = [
   { id: "exec-updates", label: "Executive updates", desc: "Clear, concise leadership communication." },
@@ -56,7 +56,7 @@ export function OnboardingWizard() {
         role: "student",
         goalIds: [...goals],
       });
-      if (res.ok || !authApiConfigured()) {
+      if (res.ok) {
         router.push("/dashboard");
         return;
       }
@@ -82,7 +82,7 @@ export function OnboardingWizard() {
         cohortDescription: cohortDesc.trim() || undefined,
         ...(Number.isFinite(w) && w >= 1 && w <= 52 ? { programLengthWeeks: w } : {}),
       });
-      if (res.ok || !authApiConfigured()) {
+      if (res.ok) {
         router.push("/org/cohorts");
         return;
       }

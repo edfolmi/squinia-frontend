@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { parseAttemptSessionId } from "../../simulation/_lib/attempt-id";
-import { reportHref, type RecentSessionRow } from "../_lib/student-mock-data";
+import { simulationReportHref } from "@/app/_lib/simulation-mappers";
+
+import { type RecentSessionRow } from "../_lib/student-mock-data";
 import { groupRecentSessionsByScenario } from "./group-recent-sessions";
 
 type Props = {
@@ -31,7 +33,8 @@ export function SessionsTable({ rows }: Props) {
           {groups.map((g) => {
             const latest = g.attempts[0];
             const isOpen = openKey === g.groupKey;
-            const best = Math.max(...g.attempts.map((a) => a.score));
+            const scores = g.attempts.map((a) => a.score).filter((s): s is number => s != null);
+            const best = scores.length ? Math.max(...scores) : 0;
 
             return (
               <SessionGroupRows
@@ -94,14 +97,16 @@ function SessionGroupRows({
               <span className="font-medium text-[#111111]">{scenarioTitle}</span>
               <span className="mt-1 block font-mono text-[10px] text-[var(--faint)]">
                 {attemptCount} attempt{attemptCount === 1 ? "" : "s"}
-                {attemptCount > 1 && best !== latest?.score ? ` · best ${best}` : null}
+                {attemptCount > 1 && latest?.score != null && best !== latest.score ? ` · best ${best}` : null}
               </span>
               <p className="mt-0.5 font-mono text-[10px] text-[var(--faint)] sm:hidden">{kind}</p>
             </span>
           </button>
         </td>
         <td className="hidden px-4 py-4 capitalize text-[var(--muted)] sm:table-cell">{kind}</td>
-        <td className="px-4 py-4 font-mono tabular-nums text-[#166534]">{latest?.score ?? "—"}</td>
+        <td className="px-4 py-4 font-mono tabular-nums text-[#166534]">
+          {latest?.score != null ? latest.score : "—"}
+        </td>
         <td className="hidden px-4 py-4 text-[var(--muted)] md:table-cell">
           {latest
             ? new Date(latest.endedAt).toLocaleDateString(undefined, {
@@ -114,7 +119,7 @@ function SessionGroupRows({
         <td className="px-4 py-4 text-right align-top">
           {latest ? (
             <Link
-              href={reportHref(latest.sessionId, latest.kind)}
+              href={simulationReportHref(latest.sessionId, latest.kind)}
               onClick={(e) => e.stopPropagation()}
               className="inline-block rounded-xl border border-[var(--rule-strong)] px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
             >
@@ -152,7 +157,9 @@ function SessionGroupRows({
                         <p className="font-mono text-[11px] text-[#111111]">{label}</p>
                         <p className="mt-0.5 text-[12px] text-[var(--muted)]">
                           Score{" "}
-                          <span className="font-mono tabular-nums text-[#166534]">{row.score}</span>
+                          <span className="font-mono tabular-nums text-[#166534]">
+                            {row.score != null ? row.score : "—"}
+                          </span>
                           <span className="mx-1.5 text-[var(--faint)]">·</span>
                           {new Date(row.endedAt).toLocaleString(undefined, {
                             month: "short",
@@ -163,7 +170,7 @@ function SessionGroupRows({
                         </p>
                       </div>
                       <Link
-                        href={reportHref(row.sessionId, row.kind)}
+                        href={simulationReportHref(row.sessionId, row.kind)}
                         className="shrink-0 rounded-lg border border-[var(--rule-strong)] px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
                       >
                         Open report

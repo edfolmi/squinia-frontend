@@ -43,6 +43,31 @@ async function parseJsonResponse<T>(res: Response): Promise<ApiResult<T>> {
 
 type PostJsonOptions = { bearer?: boolean };
 
+async function getJson<T>(path: string, options?: PostJsonOptions): Promise<ApiResult<T>> {
+  const base = getApiBase();
+  if (!base) return notConfigured();
+
+  const headers: Record<string, string> = {};
+  if (options?.bearer !== false) {
+    const access = getAccessToken();
+    if (!access) {
+      return { ok: false, message: "You need to be signed in first (missing access token)." };
+    }
+    headers.Authorization = `Bearer ${access}`;
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    return parseJsonResponse<T>(res);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
 async function postJson<T>(path: string, body: unknown, options?: PostJsonOptions): Promise<ApiResult<T>> {
   const base = getApiBase();
   if (!base) return notConfigured();
@@ -78,6 +103,70 @@ export type AcceptInviteBody = { token: string; password?: string; fullName?: st
 
 export function authApiConfigured(): boolean {
   return Boolean(getApiBase());
+}
+
+/** One row from ``GET /auth/me`` ``memberships`` (shape matches backend ``MeMembershipItem``). */
+export type AuthMeMembership = {
+  tenant_id?: string;
+  tenant_name?: string;
+  tenant_slug?: string;
+  org_role?: string;
+  joined_at?: string;
+};
+
+/** ``GET /api/v1/auth/me`` — call after tokens are stored (login, refresh, onboarding). */
+export type AuthMeResponse = {
+  user: {
+    onboarding_completed_at?: string | null;
+    [key: string]: unknown;
+  };
+  memberships: AuthMeMembership[];
+  default_tenant_id?: string | null;
+  default_org_role?: string | null;
+};
+
+export async function authFetchMe(): Promise<ApiResult<AuthMeResponse>> {
+  return getJson<AuthMeResponse>(AUTH_PATHS.me, { bearer: true });
+}
+
+/** Matches bootstrap tenant name from ``ensure_personal_workspace`` (``"{name}'s workspace"``). */
+function isPersonalWorkspaceTenant(m: AuthMeMembership | undefined): boolean {
+  const n = m?.tenant_name;
+  return typeof n === "string" && /'s workspace$/u.test(n);
+}
+
+/**
+ * Where to send the user right after auth tokens are saved.
+ * Uses ``/auth/me``: onboarding until ``onboarding_completed_at``; then org vs learner shell.
+ * Self-serve signups get a lone personal workspace first — they still see onboarding until it is completed.
+ */
+export function postAuthDestination(me: AuthMeResponse | null): string {
+  if (!me) {
+    return "/dashboard";
+  }
+
+  const completed = Boolean(me.user?.onboarding_completed_at);
+  const ms = Array.isArray(me.memberships) ? me.memberships : [];
+  const hasMembership = ms.length > 0;
+  const role = me.default_org_role;
+  const isOrg = role === "ORG_OWNER" || role === "ORG_ADMIN" || role === "INSTRUCTOR";
+
+  // Invites (or any non-bootstrap-only tenant) already belong to a real org before ``onboarding_completed_at`` is set.
+  if (!completed && hasMembership) {
+    const onlyPersonalBootstrap = ms.length === 1 && isPersonalWorkspaceTenant(ms[0]);
+    if (!onlyPersonalBootstrap) {
+      return isOrg ? "/org/cohorts" : "/dashboard";
+    }
+  }
+
+  if (!completed) {
+    return isOrg ? "/onboarding?role=admin" : "/onboarding";
+  }
+
+  if (isOrg) {
+    return "/org/cohorts";
+  }
+  return "/dashboard";
 }
 
 export async function authLogin(body: LoginBody): Promise<ApiResult<unknown>> {

@@ -4,11 +4,20 @@
  *
  * Set `NEXT_PUBLIC_API_BASE`. For older setups, `NEXT_PUBLIC_AUTH_API_BASE` is still read as the origin.
  * In development, defaults to `http://localhost:8000` when neither env var is set.
+ *
+ * A trailing ``/api/v1`` is stripped so callers do not end up with ``/api/v1/api/v1/...`` URLs
+ * (which can hit the wrong route and return 422 validation errors).
  */
+function normalizeApiOrigin(raw: string): string {
+  let s = raw.trim().replace(/\/+$/, "");
+  s = s.replace(/\/api\/v1$/i, "");
+  return s.replace(/\/+$/, "");
+}
+
 export function getApiBase(): string {
-  const explicit = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
+  const explicit = normalizeApiOrigin(process.env.NEXT_PUBLIC_API_BASE ?? "");
   if (explicit) return explicit;
-  const legacy = (process.env.NEXT_PUBLIC_AUTH_API_BASE ?? "").replace(/\/$/, "");
+  const legacy = normalizeApiOrigin(process.env.NEXT_PUBLIC_AUTH_API_BASE ?? "");
   if (legacy) return legacy;
   if (process.env.NODE_ENV === "development") return "http://localhost:8000";
   return "";

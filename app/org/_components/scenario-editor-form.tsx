@@ -4,26 +4,55 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import type { OrgDifficulty, OrgRubricItem, OrgScenario, OrgSimulationKind } from "../_lib/org-mock-data";
+import { v1 } from "@/app/_lib/v1-client";
 
 import { RubricEditor } from "./rubric-editor";
 
-type Props = {
-  mode: "new" | "edit";
-  initial: OrgScenario | null;
+type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+type AgentRole = "TECHNICAL_INTERVIEWER" | "HR_RECRUITER" | "PRODUCT_MANAGER" | "PEER_DEVELOPER" | "CLIENT_STAKEHOLDER";
+
+type RubricItem = { id: string; label: string; description: string; weight: number; order: number };
+
+type ScenarioInput = {
+  id: string;
+  title: string;
+  summary: string;
+  role: string;
+  difficulty: Difficulty;
+  agentRole: AgentRole;
+  estMinutes: number;
+  configNotes: string;
+  rubric: RubricItem[];
+  published: boolean;
 };
 
-const difficulties: OrgDifficulty[] = ["Beginner", "Medium", "Advanced"];
-const kinds: OrgSimulationKind[] = ["chat", "phone", "video"];
+type Props = {
+  mode: "new" | "edit";
+  initial: ScenarioInput | null;
+};
 
-function blankScenario(): OrgScenario {
+const difficulties: { value: Difficulty; label: string }[] = [
+  { value: "BEGINNER", label: "Beginner" },
+  { value: "INTERMEDIATE", label: "Intermediate" },
+  { value: "ADVANCED", label: "Advanced" },
+];
+
+const agentRoles: { value: AgentRole; label: string }[] = [
+  { value: "TECHNICAL_INTERVIEWER", label: "Technical Interviewer" },
+  { value: "HR_RECRUITER", label: "HR Recruiter" },
+  { value: "PRODUCT_MANAGER", label: "Product Manager" },
+  { value: "PEER_DEVELOPER", label: "Peer Developer" },
+  { value: "CLIENT_STAKEHOLDER", label: "Client Stakeholder" },
+];
+
+function blank(): ScenarioInput {
   return {
     id: "new",
     title: "",
     summary: "",
     role: "",
-    difficulty: "Medium",
-    kind: "chat",
+    difficulty: "INTERMEDIATE",
+    agentRole: "TECHNICAL_INTERVIEWER",
     estMinutes: 12,
     configNotes: "",
     rubric: [
@@ -33,35 +62,82 @@ function blankScenario(): OrgScenario {
       { id: "r4", label: "Next steps", description: "", weight: 25, order: 3 },
     ],
     published: false,
-    updatedAt: new Date().toISOString(),
   };
 }
 
+type CreateResult = { scenario: { id: string } };
+
 export function ScenarioEditorForm({ mode, initial }: Props) {
   const router = useRouter();
-  const base = useMemo(() => (initial ? { ...initial } : blankScenario()), [initial]);
+  const base = useMemo(() => (initial ? { ...initial } : blank()), [initial]);
   const [title, setTitle] = useState(base.title);
   const [summary, setSummary] = useState(base.summary);
   const [role, setRole] = useState(base.role);
-  const [difficulty, setDifficulty] = useState<OrgDifficulty>(base.difficulty);
-  const [kind, setKind] = useState<OrgSimulationKind>(base.kind);
+  const [difficulty, setDifficulty] = useState<Difficulty>(base.difficulty);
+  const [agentRole, setAgentRole] = useState<AgentRole>(base.agentRole);
   const [estMinutes, setEstMinutes] = useState(String(base.estMinutes));
   const [configNotes, setConfigNotes] = useState(base.configNotes);
   const [published, setPublished] = useState(base.published);
-  const [rubric, setRubric] = useState<OrgRubricItem[]>(base.rubric);
+  const [rubric, setRubric] = useState<RubricItem[]>(base.rubric);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 3000);
-    if (mode === "new") {
-      router.push("/org/scenarios/org-scn-weekly/edit");
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (mode === "new") {
+        const res = await v1.post<CreateResult>("scenarios", {
+          title,
+          description: summary || undefined,
+          agent_role: agentRole,
+          difficulty,
+          status: published ? "PUBLISHED" : "DRAFT",
+          estimated_minutes: Number(estMinutes) || 30,
+          config: {
+            learner_role: role,
+            config_notes: configNotes,
+            rubric_draft: rubric,
+          },
+        });
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        router.push(`/org/scenarios/${res.data.scenario.id}/edit`);
+      } else {
+        const res = await v1.patch<CreateResult>(`scenarios/${base.id}`, {
+          title,
+          description: summary || undefined,
+          difficulty,
+          status: published ? "PUBLISHED" : "DRAFT",
+          estimated_minutes: Number(estMinutes) || 30,
+          config: {
+            learner_role: role,
+            config_notes: configNotes,
+            rubric_draft: rubric,
+          },
+        });
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 3000);
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-10">
+      {error ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
+      ) : null}
+
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Basics</h2>
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -102,35 +178,35 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
             />
           </div>
           <div>
+            <label htmlFor="agentRole" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              AI agent persona
+            </label>
+            <select
+              id="agentRole"
+              value={agentRole}
+              onChange={(e) => setAgentRole(e.target.value as AgentRole)}
+              className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            >
+              {agentRoles.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label htmlFor="diff" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Difficulty
             </label>
             <select
               id="diff"
               value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as OrgDifficulty)}
+              onChange={(e) => setDifficulty(e.target.value as Difficulty)}
               className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
             >
               {difficulties.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="kind" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              Simulation type
-            </label>
-            <select
-              id="kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as OrgSimulationKind)}
-              className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
-            >
-              {kinds.map((k) => (
-                <option key={k} value={k}>
-                  {k}
+                <option key={d.value} value={d.value}>
+                  {d.label}
                 </option>
               ))}
             </select>
@@ -151,7 +227,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="cfg" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              Room config & constraints
+              Room config &amp; constraints
             </label>
             <textarea
               id="cfg"
@@ -174,13 +250,15 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className="sim-btn-accent px-6 py-3 font-mono text-[10px] uppercase">
-          {mode === "new" ? "Create scenario" : "Save changes"}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="sim-btn-accent px-6 py-3 font-mono text-[10px] uppercase disabled:opacity-50"
+        >
+          {submitting ? "Saving…" : mode === "new" ? "Create scenario" : "Save changes"}
         </button>
         {saved ? (
-          <p className="text-[13px] text-[#166534]">
-            Preview only — not persisted. New scenarios jump to a sample edit route for the demo.
-          </p>
+          <p className="text-[13px] text-[#166534]">Changes saved.</p>
         ) : null}
       </div>
     </form>

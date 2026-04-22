@@ -4,20 +4,41 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import type { AssignmentRow } from "../../_lib/student-mock-data";
+import { v1 } from "@/app/_lib/v1-client";
+
+type AssignmentRow = { id: string; status: string };
 
 export function AssignmentDetailForm({ assignment }: { assignment: AssignmentRow }) {
   const router = useRouter();
   const [text, setText] = useState("");
-  const [submitted, setSubmitted] = useState(assignment.status !== "pending");
+  const [submitted, setSubmitted] = useState(assignment.status !== "PENDING" && assignment.status !== "pending");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await v1.post(`assignments/${assignment.id}/submit`, {
+        content: text || null,
+        files: [],
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        setError(res.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {error ? (
+        <p className="rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-[13px] text-red-900">{error}</p>
+      ) : null}
       <div>
         <label htmlFor="submission" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
           Written follow-up
@@ -34,12 +55,16 @@ export function AssignmentDetailForm({ assignment }: { assignment: AssignmentRow
       </div>
       <div className="flex flex-wrap gap-3">
         {!submitted ? (
-          <button type="submit" className="sim-btn-accent px-6 py-3 font-mono text-[10px] uppercase">
-            Submit follow-up
+          <button
+            type="submit"
+            disabled={submitting}
+            className="sim-btn-accent px-6 py-3 font-mono text-[10px] uppercase disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit follow-up"}
           </button>
         ) : (
           <p className="rounded-xl border border-[#166534]/30 bg-[#e6f4ea]/60 px-4 py-3 text-[14px] text-[#166534]">
-            Preview only — submission is not sent. Wire your LMS or API to persist.
+            Submitted successfully.
           </p>
         )}
         <button

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { MOCK_PROFILE } from "../settings/_lib/settings-mock-data";
+import { useSession } from "@/app/_lib/use-session";
+import { clearAuthTokens } from "@/app/(auth)/_lib/auth-tokens";
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -13,9 +14,13 @@ function initialsFromName(name: string): string {
 }
 
 export function StudentProfileMenu() {
+  const { session, loading } = useSession();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const initials = useMemo(() => initialsFromName(MOCK_PROFILE.fullName), []);
+
+  const fullName = session?.user?.full_name || "User";
+  const email = session?.user?.email || "";
+  const initials = useMemo(() => initialsFromName(fullName), [fullName]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,6 +39,20 @@ export function StudentProfileMenu() {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  function handleSignOut() {
+    clearAuthTokens();
+    setOpen(false);
+    window.location.href = "/login";
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--field)]">
+        <span className="animate-pulse font-mono text-[10px] text-[var(--faint)]">…</span>
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative">
@@ -54,9 +73,8 @@ export function StudentProfileMenu() {
           className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-[var(--rule)] bg-[var(--surface)] py-2 shadow-[0_12px_48px_-12px_rgba(17,17,17,0.18)] ring-1 ring-black/[0.04]"
         >
           <div className="border-b border-[var(--rule)] px-4 py-3">
-            <p className="truncate text-[13px] font-semibold text-[#111111]">{MOCK_PROFILE.fullName}</p>
-            <p className="mt-0.5 truncate font-mono text-[11px] text-[var(--muted)]">{MOCK_PROFILE.email}</p>
-            <p className="mt-1 text-[10px] text-[var(--faint)]">Preview — wire session user</p>
+            <p className="truncate text-[13px] font-semibold text-[#111111]">{fullName}</p>
+            <p className="mt-0.5 truncate font-mono text-[11px] text-[var(--muted)]">{email}</p>
           </div>
           <div className="py-1">
             <Link
@@ -73,7 +91,7 @@ export function StudentProfileMenu() {
               onClick={() => setOpen(false)}
               className="block px-4 py-2.5 text-[14px] text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
             >
-              Password & security
+              Password &amp; security
             </Link>
             <Link
               role="menuitem"
@@ -81,18 +99,18 @@ export function StudentProfileMenu() {
               onClick={() => setOpen(false)}
               className="block px-4 py-2.5 text-[14px] text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
             >
-              Plan & billing
+              Plan &amp; billing
             </Link>
           </div>
           <div className="border-t border-[var(--rule)] py-1">
-            <Link
+            <button
+              type="button"
               role="menuitem"
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
+              onClick={handleSignOut}
+              className="block w-full px-4 py-2.5 text-left text-[14px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
             >
               Sign out
-            </Link>
+            </button>
           </div>
         </div>
       ) : null}

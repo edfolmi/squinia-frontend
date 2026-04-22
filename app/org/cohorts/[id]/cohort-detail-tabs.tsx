@@ -2,25 +2,42 @@
 
 import { useMemo, useState } from "react";
 
+import { v1 } from "@/app/_lib/v1-client";
+
 import { SkillRadarChart } from "../../_components/skill-radar-chart";
-import type { OrgMember, OrgSkillProfile, OrgStudentProgress } from "../../_lib/org-mock-data";
-import { getMemberById } from "../../_lib/org-mock-data";
+import type { OrgSkillProfile } from "../../_lib/org-mock-data";
+import { ORG_SKILL_TARGETS } from "../../_lib/org-mock-data";
 
 const TABS = ["Members", "Progress", "Skill map"] as const;
 
-type Props = {
-  cohortId: string;
-  members: OrgMember[];
-  progress: OrgStudentProgress[];
-  skillAverage: OrgSkillProfile | null;
-  skillTargets: OrgSkillProfile;
+export type CohortMemberVm = {
+  id: string;
+  name: string;
+  email: string;
+  invitedAt: string;
+  status: "active" | "pending";
 };
 
-export function CohortDetailTabs({ cohortId, members, progress, skillAverage, skillTargets }: Props) {
+export type ProgressRowVm = {
+  memberId: string;
+  scenarioTitle: string;
+  attempts: number;
+  bestScore: number | null;
+  completed: boolean;
+};
+
+type Props = {
+  cohortId: string;
+  members: CohortMemberVm[];
+  progress: ProgressRowVm[];
+  skillAverage: OrgSkillProfile | null;
+};
+
+export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Members");
 
   const progressRows = useMemo(() => {
-    const byMember = new Map<string, OrgStudentProgress[]>();
+    const byMember = new Map<string, ProgressRowVm[]>();
     for (const p of progress) {
       const list = byMember.get(p.memberId) ?? [];
       list.push(p);
@@ -50,7 +67,7 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
         <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Member list</h2>
-            <InviteRow cohortId={cohortId} />
+            <InviteRow />
           </div>
           <ul className="mt-5 divide-y divide-[var(--rule)]">
             {members.map((m) => (
@@ -59,7 +76,7 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
                   <p className="font-medium text-[#111111]">{m.name}</p>
                   <p className="mt-0.5 text-[13px] text-[var(--muted)]">{m.email}</p>
                   <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--faint)]">
-                    Invited {new Date(m.invitedAt).toLocaleDateString()}
+                    Joined {new Date(m.invitedAt).toLocaleDateString()}
                   </p>
                 </div>
                 <span
@@ -79,7 +96,7 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
         <section className="overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--surface)]">
           <div className="border-b border-[var(--rule)] bg-[var(--field)]/60 px-4 py-3 sm:px-5">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Progress by student</h2>
-            <p className="mt-1 text-[13px] text-[var(--muted)]">Best report score and completion per scenario.</p>
+            <p className="mt-1 text-[13px] text-[var(--muted)]">Aggregates from the cohort progress API.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-[13px]">
@@ -94,9 +111,9 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
               </thead>
               <tbody>
                 {progress.map((p) => {
-                  const mem = getMemberById(p.memberId);
+                  const mem = members.find((m) => m.id === p.memberId);
                   return (
-                    <tr key={`${p.memberId}-${p.scenarioId}`} className="border-b border-[var(--rule)] last:border-0">
+                    <tr key={`${p.memberId}-${p.scenarioTitle}`} className="border-b border-[var(--rule)] last:border-0">
                       <td className="px-4 py-3 font-medium text-[#111111]">{mem?.name ?? p.memberId}</td>
                       <td className="px-4 py-3 text-[var(--muted)]">{p.scenarioTitle}</td>
                       <td className="px-4 py-3 font-mono tabular-nums">{p.attempts}</td>
@@ -117,13 +134,13 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
         <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Cohort skill map</h2>
           <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-[var(--muted)]">
-            Radar shows active members&apos; average by dimension. Dashed outline is program target.
+            Radar shows cohort average vs program targets when analytics returns skill dimensions.
           </p>
           <div className="mt-8 flex flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-center">
             {skillAverage ? (
               <SkillRadarChart
                 profile={skillAverage}
-                target={skillTargets}
+                target={ORG_SKILL_TARGETS}
                 size={260}
                 caption="Cohort average vs target profile"
               />
@@ -141,7 +158,7 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-medium text-[#111111]">{member.name}</p>
-                        <p className="text-[11px] text-[var(--faint)]">{rows.length} tracked scenarios</p>
+                        <p className="text-[11px] text-[var(--faint)]">{rows.length} tracked rows</p>
                       </div>
                       <a
                         href={`/org/analytics?member=${member.id}&cohort=${cohortId}`}
@@ -161,17 +178,30 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
   );
 }
 
-function InviteRow({ cohortId }: { cohortId: string }) {
+function InviteRow() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   return (
     <form
       className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:items-center"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        setSent(true);
-        window.setTimeout(() => setSent(false), 2400);
+        setMsg(null);
+        setLoading(true);
+        const res = await v1.post("auth/invites", {
+          email: email.trim(),
+          role: "STUDENT",
+          expires_in_days: 14,
+        });
+        setLoading(false);
+        if (res.ok) {
+          setMsg("Invite created.");
+          setEmail("");
+        } else {
+          setMsg(res.message);
+        }
       }}
     >
       <input
@@ -184,10 +214,12 @@ function InviteRow({ cohortId }: { cohortId: string }) {
       />
       <button
         type="submit"
-        className="rounded-xl border border-[var(--rule-strong)] px-4 py-2 text-[12px] font-medium text-[#111111] hover:bg-[var(--field)]"
+        disabled={loading}
+        className="rounded-xl border border-[var(--rule-strong)] px-4 py-2 text-[12px] font-medium text-[#111111] hover:bg-[var(--field)] disabled:opacity-50"
       >
-        {sent ? "Queued (preview)" : "Invite"}
+        {loading ? "Sending…" : "Invite"}
       </button>
+      {msg ? <p className="mt-2 w-full text-[12px] text-[var(--muted)]">{msg}</p> : null}
     </form>
   );
 }

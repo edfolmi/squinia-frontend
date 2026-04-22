@@ -138,7 +138,7 @@
           "Authentication"
         ],
         "summary": "Get Current User Info",
-        "description": "Return the authenticated user.",
+        "description": "Current user plus org memberships for shell routing (learner vs org operator).\n\n``data.user`` includes ``onboarding`` and ``onboarding_completed_at``.\n``data.memberships`` lists active tenants with ``tenant_name`` / ``tenant_slug`` / ``org_role``.\n``data.default_tenant_id`` matches the first membership (same ordering as JWT default tenant).",
         "operationId": "get_current_user_info_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -389,6 +389,53 @@
         ]
       }
     },
+    "/api/v1/auth/invites": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Create a tenant invite",
+        "description": "Requires Bearer token with `tenant_id` claim. Caller must be ORG_OWNER or ORG_ADMIN in that tenant.",
+        "operationId": "create_tenant_invite_api_v1_auth_invites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/users": {
       "get": {
         "tags": [
@@ -581,6 +628,52 @@
               "type": "string",
               "format": "uuid",
               "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}": {
+      "get": {
+        "summary": "Get tenant (member only)",
+        "description": "Return basic tenant fields if the current user has an active membership in this tenant.",
+        "operationId": "get_tenant_for_member_api_v1_tenants__tenant_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tenant Id"
             }
           }
         ],
@@ -3386,6 +3479,19 @@
               }
             ],
             "title": "Cohortdescription"
+          },
+          "programLengthWeeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 520,
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Programlengthweeks"
           }
         },
         "type": "object",
@@ -3787,6 +3893,33 @@
         "title": "CohortUpdate",
         "description": "Partial cohort update."
       },
+      "CreateTenantInviteRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/OrgRole",
+            "description": "Organization role granted when the invite is accepted (typically STUDENT or INSTRUCTOR).",
+            "default": "STUDENT"
+          },
+          "expires_in_days": {
+            "type": "integer",
+            "maximum": 90,
+            "minimum": 1,
+            "title": "Expires In Days",
+            "default": 14
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "CreateTenantInviteRequest",
+        "description": "Invite someone to the current JWT tenant."
+      },
       "EvalScoreCompleteItem": {
         "properties": {
           "rubric_item_id": {
@@ -3941,6 +4074,17 @@
           "email": "user@example.com",
           "password": "strongpassword123"
         }
+      },
+      "OrgRole": {
+        "type": "string",
+        "enum": [
+          "ORG_OWNER",
+          "ORG_ADMIN",
+          "INSTRUCTOR",
+          "STUDENT"
+        ],
+        "title": "OrgRole",
+        "description": "Organization-scoped role (org_role_enum)."
       },
       "PlatformRole": {
         "type": "string",
@@ -4307,7 +4451,8 @@
           "scenario_id": {
             "type": "string",
             "format": "uuid",
-            "title": "Scenario Id"
+            "title": "Scenario Id",
+            "description": "Published scenario to run."
           },
           "cohort_id": {
             "anyOf": [
@@ -4319,10 +4464,12 @@
                 "type": "null"
               }
             ],
-            "title": "Cohort Id"
+            "title": "Cohort Id",
+            "description": "Cohort context; optional if the product allows free practice in-tenant."
           },
           "mode": {
             "$ref": "#/components/schemas/SessionMode",
+            "description": "Interaction mode for the session (e.g. TEXT).",
             "default": "TEXT"
           }
         },
@@ -4330,7 +4477,8 @@
         "required": [
           "scenario_id"
         ],
-        "title": "SimulationSessionStartRequest"
+        "title": "SimulationSessionStartRequest",
+        "description": "Start a persisted simulation session (call ``POST /api/v1/sessions`` before opening the sim UI).\n\n``tenant_id`` is taken from the access token, not the body."
       },
       "StudentOnboardingRequest": {
         "properties": {

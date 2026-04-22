@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
 import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authLogin, authRegister, setSessionFromLoginData } from "../_lib/auth-api";
+import { authApiConfigured, authFetchMe, authLogin, authRegister, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -39,7 +39,9 @@ export function RegisterForm() {
         const loginRes = await authLogin({ email: email.trim(), password });
         if (loginRes.ok) {
           setSessionFromLoginData(loginRes.data);
-          router.push("/onboarding");
+          const me = await authFetchMe();
+          const dest = postAuthDestination(me.ok ? me.data : null);
+          router.push(dest);
           router.refresh();
           return;
         }

@@ -1,14 +1,36 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { agentRoleLabel, scenarioDifficultyLabel, sessionModeToUiKind } from "@/app/_lib/simulation-mappers";
+import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { StartSimulationButton } from "../../simulation/_components/start-simulation-button";
 
-import type { Difficulty, PublishedScenario } from "../_lib/student-mock-data";
-import { PUBLISHED_SCENARIOS } from "../_lib/student-mock-data";
+import type { Difficulty, PublishedScenario, SimulationKind } from "../_lib/student-mock-data";
 
-const ROLES = ["All roles", ...Array.from(new Set(PUBLISHED_SCENARIOS.map((s) => s.role)))];
-const DIFFICULTIES: ("All levels" | Difficulty)[] = ["All levels", "Beginner", "Medium", "Advanced"];
+type ScenarioApi = {
+  id: string;
+  title: string;
+  description?: string | null;
+  agent_role?: string;
+  difficulty?: string;
+  estimated_minutes?: number;
+  status?: string;
+};
+
+function toPublished(s: ScenarioApi): PublishedScenario {
+  const diff = scenarioDifficultyLabel(s.difficulty) as Difficulty;
+  return {
+    id: s.id,
+    title: s.title,
+    summary: typeof s.description === "string" ? s.description : "",
+    role: agentRoleLabel(s.agent_role),
+    difficulty: diff,
+    kind: sessionModeToUiKind("TEXT") as SimulationKind,
+    estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
+  };
+}
 
 function kindLabel(kind: PublishedScenario["kind"]) {
   switch (kind) {
@@ -24,26 +46,56 @@ function kindLabel(kind: PublishedScenario["kind"]) {
 }
 
 export function ScenariosBrowser() {
+  const [scenarios, setScenarios] = useState<PublishedScenario[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [role, setRole] = useState("All roles");
-  const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>("All levels");
+  const [difficulty, setDifficulty] = useState<"All levels" | Difficulty>("All levels");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const res = await v1.get<ItemsData<ScenarioApi>>("scenarios", { limit: 100, page: 1 });
+    if (!res.ok) {
+      setError(res.message);
+      setScenarios([]);
+      setLoading(false);
+      return;
+    }
+    setScenarios((res.data.items ?? []).map(toPublished));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const ROLES = useMemo(
+    () => ["All roles", ...Array.from(new Set(scenarios.map((s) => s.role)))],
+    [scenarios],
+  );
+  const DIFFICULTIES: ("All levels" | Difficulty)[] = ["All levels", "Beginner", "Medium", "Advanced"];
 
   const filtered = useMemo(() => {
-    return PUBLISHED_SCENARIOS.filter((s) => {
+    return scenarios.filter((s) => {
       if (role !== "All roles" && s.role !== role) return false;
       if (difficulty !== "All levels" && s.difficulty !== difficulty) return false;
       return true;
     });
-  }, [role, difficulty]);
+  }, [scenarios, role, difficulty]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          Published practice rooms. Each start opens a fresh attempt with a unique session id so feedback reports
-          never overwrite each other. Filters are local for this preview.
+          Published practice rooms in your organization. Each start opens a new attempt with a server-backed session id.
         </p>
       </div>
+
+      {error ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
+      ) : null}
 
       <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-[12rem] flex-1">
@@ -84,7 +136,7 @@ export function ScenariosBrowser() {
           </select>
         </div>
         <p className="text-[13px] text-[var(--muted)] sm:ml-auto sm:pb-2">
-          {filtered.length} scenario{filtered.length === 1 ? "" : "s"}
+          {loading ? "Loading…" : `${filtered.length} scenario${filtered.length === 1 ? "" : "s"}`}
         </p>
       </div>
 
@@ -117,7 +169,7 @@ export function ScenariosBrowser() {
         ))}
       </ul>
 
-      {filtered.length === 0 ? (
+      {!loading && filtered.length === 0 ? (
         <p className="text-center text-[14px] text-[var(--muted)]">No scenarios match these filters.</p>
       ) : null}
     </div>

@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authVerifyEmail } from "../_lib/auth-api";
+import { authVerifyEmail } from "../_lib/auth-api";
 
 type Props = {
   initialToken: string;
@@ -47,7 +46,7 @@ export function VerifyEmailClient({ initialToken, sent }: Props) {
     <div className="space-y-6">
       {sent ? (
         <p className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/60 px-3 py-2 text-[13px] text-[var(--muted)]">
-          We sent a link to your inbox (when your API is wired). Open it on this device, or paste the token below.
+          We sent a verification link to your inbox. Open it on this device, or paste the token below.
         </p>
       ) : null}
       <AuthFormMessage error={error} success={success} />
@@ -86,12 +85,6 @@ export function VerifyEmailClient({ initialToken, sent }: Props) {
           Sign up again
         </Link>
       </p>
-      <PreviewContinue href="/login" label="Preview: continue to sign in" />
-      {!authApiConfigured() ? (
-        <p className="text-center text-[12px] text-[var(--faint)]">
-          Set <span className="font-mono text-[11px]">NEXT_PUBLIC_API_BASE</span> when the verify-email route exists on the API.
-        </p>
-      ) : null}
     </div>
   );
 }

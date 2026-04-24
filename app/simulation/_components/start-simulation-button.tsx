@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import type { SimulationKind } from "../_lib/attempt-id";
 import { appendAttemptToScenarioId, buildSimulationPath, newAttemptToken } from "../_lib/attempt-id";
+import { setSimulationWsToken, startBackendSimulationSession } from "../_lib/backend-simulation";
 
 type Props = {
   scenarioId: string;
@@ -14,8 +16,11 @@ type Props = {
   title?: string;
 };
 
+const useBackendSessions = () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1";
+
 /**
- * Navigates to a new simulation attempt (unique session id per click) so each run gets its own report.
+ * Navigates to a simulation attempt. With `NEXT_PUBLIC_USE_BACKEND_SESSIONS=1`, creates
+ * `POST /api/v1/sessions` first so phone/video can join LiveKit and chat can use the WebSocket.
  */
 export function StartSimulationButton({
   scenarioId,
@@ -26,15 +31,28 @@ export function StartSimulationButton({
   title,
 }: Props) {
   const router = useRouter();
+  const [busy, setBusy] = useState(false);
 
   return (
     <button
       type="button"
       className={className}
-      disabled={disabled}
+      disabled={disabled || busy}
       title={title}
       onClick={() => {
-        if (disabled) return;
+        if (disabled || busy) return;
+        if (useBackendSessions()) {
+          setBusy(true);
+          void (async () => {
+            const mode = kind === "phone" ? "VOICE" : kind === "video" ? "VIDEO" : "TEXT";
+            const started = await startBackendSimulationSession({ scenarioId, mode });
+            setBusy(false);
+            if (!started) return;
+            setSimulationWsToken(started.session_id, started.ws_token);
+            router.push(buildSimulationPath(started.session_id, kind));
+          })();
+          return;
+        }
         const fullSessionId = appendAttemptToScenarioId(scenarioId, newAttemptToken());
         router.push(buildSimulationPath(fullSessionId, kind));
       }}

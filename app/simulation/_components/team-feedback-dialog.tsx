@@ -108,8 +108,8 @@ export function SimulationTeamFeedbackDialog({
               Thanks — we got it
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted)]">
-              Your note was queued for the Squinia team and will surface in our support channel
-              immediately once the API is connected. For now this is a preview confirmation only.
+              Your note has been queued for the Squinia team and will surface in our support channel
+              shortly. Thank you for the feedback.
             </p>
           </div>
         ) : (
@@ -124,7 +124,7 @@ export function SimulationTeamFeedbackDialog({
               Send feedback to our team
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted)]">
-              Describe what went wrong or what we should know. When live, each send routes
+              Describe what went wrong or what we should know. Your report goes
               straight to our on-call channel for immediate triage. Session{" "}
               <span className="font-mono text-[12px] text-[#111111]">{sessionShort}</span> ·{" "}
               {kindLabel(kind)}.

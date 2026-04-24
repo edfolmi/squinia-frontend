@@ -101,11 +101,11 @@ export function InstructorAssignmentRulesForm({ assignment }: Props) {
       </div>
 
       <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/50 px-4 py-3 text-[13px] text-[var(--muted)]">
-        <span className="font-medium text-[#111111]">Effective in this browser:</span> max{" "}
+        <span className="font-medium text-[#111111]">Active rules:</span> max{" "}
         <span className="font-mono tabular-nums">{effective.maxAttempts}</span> attempts, min score{" "}
         <span className="font-mono tabular-nums">{effective.minScorePercent}%</span>
         {effective.maxAttempts !== assignment.maxAttempts || effective.minScorePercent !== assignment.minScorePercent
-          ? " (overrides mock defaults until cleared in local storage)."
+          ? " (custom override active)."
           : "."}
       </div>
 
@@ -114,7 +114,7 @@ export function InstructorAssignmentRulesForm({ assignment }: Props) {
           Save rules
         </button>
         {saved ? (
-          <p className="text-[13px] text-[#166534]">Saved locally — student assignment page will pick this up here.</p>
+          <p className="text-[13px] text-[#166534]">Rules saved.</p>
         ) : null}
       </div>
     </form>

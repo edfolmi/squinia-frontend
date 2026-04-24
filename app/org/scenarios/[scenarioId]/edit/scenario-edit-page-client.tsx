@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { scenarioConfigToUiKind, type UiSimulationKind } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
 import { ScenarioEditorForm } from "../../../_components/scenario-editor-form";
@@ -26,6 +27,7 @@ type ScenarioInput = {
   role: string;
   difficulty: Difficulty;
   agentRole: AgentRole;
+  simulationKind: UiSimulationKind;
   estMinutes: number;
   configNotes: string;
   rubric: { id: string; label: string; description: string; weight: number; order: number }[];
@@ -61,6 +63,7 @@ function mapScenario(payload: {
     role: typeof config.learner_role === "string" ? config.learner_role : "",
     difficulty: diff,
     agentRole,
+    simulationKind: scenarioConfigToUiKind(config),
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
     configNotes: typeof config.config_notes === "string" ? config.config_notes : "",
     rubric,

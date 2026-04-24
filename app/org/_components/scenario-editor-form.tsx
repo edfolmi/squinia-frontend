@@ -4,6 +4,8 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import type { UiSimulationKind } from "@/app/_lib/simulation-mappers";
+import { uiKindToSessionMode } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
 import { RubricEditor } from "./rubric-editor";
@@ -20,6 +22,7 @@ type ScenarioInput = {
   role: string;
   difficulty: Difficulty;
   agentRole: AgentRole;
+  simulationKind: UiSimulationKind;
   estMinutes: number;
   configNotes: string;
   rubric: RubricItem[];
@@ -35,6 +38,12 @@ const difficulties: { value: Difficulty; label: string }[] = [
   { value: "BEGINNER", label: "Beginner" },
   { value: "INTERMEDIATE", label: "Intermediate" },
   { value: "ADVANCED", label: "Advanced" },
+];
+
+const simulationFormats: { value: UiSimulationKind; title: string; hint: string }[] = [
+  { value: "chat", title: "Chat", hint: "Text transcript — typing and reading, like messaging." },
+  { value: "phone", title: "Phone", hint: "Voice-only — microphone and speaker, no camera." },
+  { value: "video", title: "Video", hint: "Camera (and optional screen share) for presence practice." },
 ];
 
 const agentRoles: { value: AgentRole; label: string }[] = [
@@ -53,6 +62,7 @@ function blank(): ScenarioInput {
     role: "",
     difficulty: "INTERMEDIATE",
     agentRole: "TECHNICAL_INTERVIEWER",
+    simulationKind: "chat",
     estMinutes: 12,
     configNotes: "",
     rubric: [
@@ -75,6 +85,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
   const [role, setRole] = useState(base.role);
   const [difficulty, setDifficulty] = useState<Difficulty>(base.difficulty);
   const [agentRole, setAgentRole] = useState<AgentRole>(base.agentRole);
+  const [simulationKind, setSimulationKind] = useState<UiSimulationKind>(base.simulationKind);
   const [estMinutes, setEstMinutes] = useState(String(base.estMinutes));
   const [configNotes, setConfigNotes] = useState(base.configNotes);
   const [published, setPublished] = useState(base.published);
@@ -100,6 +111,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
             learner_role: role,
             config_notes: configNotes,
             rubric_draft: rubric,
+            session_mode: uiKindToSessionMode(simulationKind),
           },
         });
         if (!res.ok) {
@@ -111,6 +123,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
         const res = await v1.patch<CreateResult>(`scenarios/${base.id}`, {
           title,
           description: summary || undefined,
+          agent_role: agentRole,
           difficulty,
           status: published ? "PUBLISHED" : "DRAFT",
           estimated_minutes: Number(estMinutes) || 30,
@@ -118,6 +131,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
             learner_role: role,
             config_notes: configNotes,
             rubric_draft: rubric,
+            session_mode: uiKindToSessionMode(simulationKind),
           },
         });
         if (!res.ok) {
@@ -225,6 +239,40 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
               className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 font-mono text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
             />
           </div>
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-3 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Simulation format
+            </legend>
+            <p className="mb-3 text-[13px] leading-relaxed text-[var(--muted)]">
+              Learners open this format when they start a new attempt from Scenarios or an assignment.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {simulationFormats.map((fmt) => {
+                const selected = simulationKind === fmt.value;
+                return (
+                  <label
+                    key={fmt.value}
+                    className={`cursor-pointer rounded-2xl border px-4 py-3 transition-colors ${
+                      selected
+                        ? "border-[#166534] bg-[#e6f4ea]/50 ring-1 ring-[#166534]/30"
+                        : "border-[var(--rule-strong)] bg-[var(--surface)] hover:border-[var(--rule)] hover:bg-[var(--field)]/60"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="simulationKind"
+                      value={fmt.value}
+                      checked={selected}
+                      onChange={() => setSimulationKind(fmt.value)}
+                      className="sr-only"
+                    />
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">{fmt.title}</p>
+                    <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{fmt.hint}</p>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
           <div className="sm:col-span-2">
             <label htmlFor="cfg" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Room config &amp; constraints

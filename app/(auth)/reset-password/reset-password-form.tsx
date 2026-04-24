@@ -6,8 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authResetPassword } from "../_lib/auth-api";
+import { authResetPassword } from "../_lib/auth-api";
 
 type Props = {
   initialToken: string;
@@ -43,10 +42,6 @@ export function ResetPasswordForm({ initialToken }: Props) {
       const res = await authResetPassword({ token: token.trim(), password });
       if (res.ok) {
         router.push("/login");
-        return;
-      }
-      if (!authApiConfigured()) {
-        setError("API not configured — use preview link below to continue.");
         return;
       }
       setError(res.message);
@@ -110,7 +105,6 @@ export function ResetPasswordForm({ initialToken }: Props) {
           Back to sign in
         </Link>
       </p>
-      <PreviewContinue href="/login" label="Preview: return to sign in" />
     </form>
   );
 }

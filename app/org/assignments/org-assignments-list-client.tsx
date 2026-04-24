@@ -41,7 +41,7 @@ export function OrgAssignmentsListClient() {
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Assignments</h1>
           <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">
-            Tenant assignments from <span className="font-mono text-[11px]">GET /api/v1/assignments</span>.
+            Track and manage assignments across your organization.
           </p>
         </div>
         <Link

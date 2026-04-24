@@ -54,9 +54,7 @@ export function InstructorAppShell({ children }: { children: React.ReactNode }) 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/90 px-4 backdrop-blur-sm sm:px-6">
           <p className="truncate text-[14px] font-medium tracking-[-0.02em] text-[#111111]">Teaching workspace</p>
-          <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)] sm:inline">
-            Preview
-          </span>
+          <span className="hidden sm:inline" />
         </header>
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>
       </div>

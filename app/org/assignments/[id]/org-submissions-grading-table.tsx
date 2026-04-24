@@ -100,9 +100,6 @@ export function OrgSubmissionsGradingTable({ submissions }: Props) {
           ))}
         </tbody>
       </table>
-      <p className="border-t border-[var(--rule)] px-3 py-2 text-[11px] text-[var(--muted)]">
-        Preview — grades are not sent to a server. Status chips are local only after you click Mark graded.
-      </p>
     </div>
   );
 }

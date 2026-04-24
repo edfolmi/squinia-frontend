@@ -3,6 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  buildSimulationChatWsUrl,
+  clearSimulationWsToken,
+  endBackendSimulationSession,
+  getSimulationWsToken,
+  isBackendSessionId,
+} from "../_lib/backend-simulation";
 import { buildStoredChatReport, saveSessionReport } from "../_lib/session-report";
 import { SimulationTeamFeedbackDialog } from "../_components/team-feedback-dialog";
 
@@ -289,8 +296,17 @@ export function SimulationScreen({
   const centerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const elapsedRef = useRef(0);
+  const chatWsRef = useRef<WebSocket | null>(null);
+  const streamStateRef = useRef<AiStream | null>(null);
+  const lastSentUserLineIdRef = useRef<string | null>(null);
 
   const live = phase === "live";
+  const useBackendChat = useMemo(
+    () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
+    [sessionId],
+  );
+  const [chatWsState, setChatWsState] = useState<"idle" | "connecting" | "open" | "error">("idle");
+  const replyBlocked = useBackendChat && live && composeMode === "reply" && chatWsState !== "open";
   const sessionBusy = aiTyping || aiStream !== null;
   const initials = useMemo(() => initialsFrom(personaName), [personaName]);
 
@@ -303,6 +319,127 @@ export function SimulationScreen({
   useEffect(() => {
     elapsedRef.current = elapsed;
   }, [elapsed]);
+
+  useEffect(() => {
+    if (!live) {
+      lastSentUserLineIdRef.current = null;
+      streamStateRef.current = null;
+    }
+  }, [live]);
+
+  useEffect(() => {
+    if (!live || !useBackendChat) {
+      setChatWsState("idle");
+      const existing = chatWsRef.current;
+      if (existing) {
+        existing.onmessage = null;
+        existing.onerror = null;
+        existing.onclose = null;
+        existing.close();
+        chatWsRef.current = null;
+      }
+      return;
+    }
+
+    const tok = getSimulationWsToken(sessionId);
+    const url = tok ? buildSimulationChatWsUrl(sessionId, tok) : null;
+    if (!url) {
+      setChatWsState("error");
+      return;
+    }
+
+    setChatWsState("connecting");
+    const ws = new WebSocket(url);
+    chatWsRef.current = ws;
+
+    ws.onopen = () => setChatWsState("open");
+
+    ws.onerror = () => setChatWsState("error");
+
+    ws.onmessage = (ev) => {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(String(ev.data));
+      } catch {
+        return;
+      }
+      if (!raw || typeof raw !== "object") return;
+      const msg = raw as Record<string, unknown>;
+      const t = msg.type;
+
+      if (t === "error") {
+        const err = (msg.error as Record<string, unknown> | undefined) ?? {};
+        setAiTyping(false);
+        streamStateRef.current = null;
+        setAiStream(null);
+        window.alert(String(err.message ?? "Simulation chat error"));
+        return;
+      }
+
+      if (t === "ASSISTANT_TOKEN") {
+        const data = (msg.data as Record<string, unknown> | undefined) ?? {};
+        const token = typeof data.token === "string" ? data.token : "";
+        if (!token) return;
+        setAiTyping(false);
+        setAiStream((prev) => {
+          const next = prev
+            ? { ...prev, full: prev.full + token, shown: prev.full + token }
+            : {
+                lineId: crypto.randomUUID(),
+                full: token,
+                shown: token,
+                offsetSec: elapsedRef.current,
+              };
+          streamStateRef.current = next;
+          return next;
+        });
+        return;
+      }
+
+      if (t === "ASSISTANT_DONE") {
+        setAiTyping(false);
+        const snap = streamStateRef.current;
+        streamStateRef.current = null;
+        setAiStream(null);
+        if (snap) {
+          const text = snap.full.trim() || "…";
+          setLines((lp) => [...lp, { id: snap.lineId, role: "ai", text, offsetSec: snap.offsetSec }]);
+        }
+        return;
+      }
+    };
+
+    ws.onclose = () => {
+      chatWsRef.current = null;
+      setChatWsState((prev) => (prev === "open" || prev === "connecting" ? "error" : "idle"));
+    };
+
+    return () => {
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      ws.close();
+      if (chatWsRef.current === ws) chatWsRef.current = null;
+      setChatWsState("idle");
+    };
+  }, [live, useBackendChat, sessionId]);
+
+  useEffect(() => {
+    if (!live || !useBackendChat) return;
+    const ws = chatWsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const last = lines[lines.length - 1];
+    if (!last || last.role !== "user" || last.text.startsWith("Note —")) return;
+    if (lastSentUserLineIdRef.current === last.id) return;
+    lastSentUserLineIdRef.current = last.id;
+    setAiTyping(true);
+    try {
+      ws.send(JSON.stringify({ type: "USER_MESSAGE", data: { text: last.text } }));
+    } catch {
+      setAiTyping(false);
+      lastSentUserLineIdRef.current = null;
+    }
+  }, [lines, live, useBackendChat, chatWsState]);
 
   useEffect(() => {
     const el = centerRef.current;
@@ -361,7 +498,7 @@ export function SimulationScreen({
   );
 
   useEffect(() => {
-    if (!live) return;
+    if (!live || useBackendChat) return;
     const last = lines[lines.length - 1];
     if (!last || last.role !== "user") return;
     if (last.text.startsWith("Note —")) return;
@@ -387,10 +524,10 @@ export function SimulationScreen({
       window.clearTimeout(t);
       setAiTyping(false);
     };
-  }, [lines, live]);
+  }, [lines, live, useBackendChat]);
 
   useEffect(() => {
-    if (!aiStream) return;
+    if (!aiStream || useBackendChat) return;
     if (aiStream.shown.length >= aiStream.full.length) {
       setLines((prev) => [
         ...prev,
@@ -420,7 +557,7 @@ export function SimulationScreen({
     }, 24);
 
     return () => window.clearTimeout(tick);
-  }, [aiStream]);
+  }, [aiStream, useBackendChat]);
 
   const sessionShort = useMemo(
     () => (sessionId.length > 10 ? `${sessionId.slice(0, 6)}…` : sessionId),
@@ -430,18 +567,30 @@ export function SimulationScreen({
   function enterLive() {
     setPhase("live");
     setElapsed(0);
-    setLines(INITIAL);
+    setLines(useBackendChat ? [] : INITIAL);
     setDraft("");
     setAiTyping(false);
     setAiStream(null);
   }
 
-  function requestEndSession() {
+  async function requestEndSession() {
     if (!live) return;
     const ok = window.confirm(
       "End this simulation? You will open your session report with transcript and evaluation.",
     );
     if (!ok) return;
+    if (useBackendChat) {
+      const ws = chatWsRef.current;
+      if (ws) {
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        ws.close();
+        chatWsRef.current = null;
+      }
+      await endBackendSimulationSession(sessionId);
+      clearSimulationWsToken(sessionId);
+    }
     const payload = buildStoredChatReport({
       sessionId,
       scenarioTitle,
@@ -632,7 +781,7 @@ export function SimulationScreen({
           <button
             type="button"
             disabled={!live}
-            onClick={requestEndSession}
+            onClick={() => void requestEndSession()}
             className="sim-btn-accent rounded-xl px-4 py-2.5 font-mono text-[10px] uppercase sm:px-5"
           >
             End simulation
@@ -659,6 +808,14 @@ export function SimulationScreen({
 
               {live ? (
                 <ol className="mt-8 list-none p-0 sm:mt-10">
+                  {useBackendChat && lines.length === 0 && !aiStream && !aiTyping ? (
+                    <li className="mt-2">
+                      <p className="text-sm leading-relaxed text-[var(--muted)]">
+                        You are connected to the live facilitator model. Send a reply to begin — notes stay on
+                        this device only.
+                      </p>
+                    </li>
+                  ) : null}
                   {lines.map((entry, i) => (
                     <li key={entry.id}>
                       {i > 0 ? <TranscriptRule /> : null}
@@ -805,10 +962,11 @@ export function SimulationScreen({
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
                           if (sessionBusy) return;
+                          if (composeMode === "reply" && replyBlocked) return;
                           pushUser(draft);
                         }
                       }}
-                      disabled={sessionBusy}
+                      disabled={sessionBusy || (composeMode === "reply" && replyBlocked)}
                       placeholder={
                         composeMode === "note"
                           ? "Private note…"
@@ -819,17 +977,21 @@ export function SimulationScreen({
                   </div>
                   <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
                     <p className="mr-auto max-w-[min(100%,20rem)] font-mono text-[10px] leading-snug tracking-[0.06em] text-[var(--muted)] sm:order-first">
-                      {sessionBusy
-                        ? "Wait for the interviewer to finish."
-                        : !draft.trim()
-                          ? composeMode === "note"
-                            ? "Add a note, then send. Notes are private."
-                            : "Add a reply to enable Send."
-                          : "Enter sends · Shift+Enter newline"}
+                      {replyBlocked
+                        ? chatWsState === "connecting"
+                          ? "Connecting to facilitator…"
+                          : "Chat link unavailable — start again from the scenario hub."
+                        : sessionBusy
+                          ? "Wait for the interviewer to finish."
+                          : !draft.trim()
+                            ? composeMode === "note"
+                              ? "Add a note, then send. Notes are private."
+                              : "Add a reply to enable Send."
+                            : "Enter sends · Shift+Enter newline"}
                     </p>
                     <button
                       type="button"
-                      disabled={sessionBusy || !draft.trim()}
+                      disabled={sessionBusy || !draft.trim() || (composeMode === "reply" && replyBlocked)}
                       onClick={() => pushUser(draft)}
                       className={`min-w-[5.5rem] px-4 py-2 font-mono text-[10px] uppercase transition-opacity duration-200 ease-out ${
                         sessionBusy

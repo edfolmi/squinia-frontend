@@ -16,7 +16,7 @@ export type MemberLite = { id: string; name: string; email: string; cohortId: st
 
 type Props = {
   cohortSummaries: CohortSummary[];
-  /** When empty, per-student list is hidden unless mock members are used via URL filters. */
+  /** When empty, per-student list is hidden. */
   members?: MemberLite[];
 };
 
@@ -89,8 +89,7 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
       <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Per-student drill-down</h2>
         <p className="mt-2 text-[14px] text-[var(--muted)]">
-          Live summary from <span className="font-mono text-[11px]">GET /api/v1/analytics/users/…/summary</span> when a
-          member id is selected. Radar still uses preview skill data when available.
+          Select a member to view their session history, average scores, and skill radar.
         </p>
 
         {memberId && liveSummary ? (
@@ -109,7 +108,7 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
           <div className="mt-8 flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center">
             <SkillRadarChart profile={profile} target={ORG_SKILL_TARGETS} size={260} caption={member?.name} />
             <div className="max-w-md space-y-3 text-[14px] text-[var(--muted)]">
-              <p>Radar uses preview skill dimensions when present; wire rubric-based profiles when the API exposes them.</p>
+              <p>Skill radar based on rubric evaluation dimensions.</p>
               {member && "cohortId" in member && member.cohortId ? (
                 <p>
                   Cohort:{" "}
@@ -124,7 +123,7 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
             </div>
           </div>
         ) : memberId ? (
-          <p className="mt-6 text-[14px] text-[var(--muted)]">No preview skill profile for this learner.</p>
+          <p className="mt-6 text-[14px] text-[var(--muted)]">No skill profile available for this learner yet.</p>
         ) : null}
 
         {cohortMembers.length ? (

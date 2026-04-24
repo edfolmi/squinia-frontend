@@ -77,7 +77,7 @@ export function InstructorAssignmentsClient() {
                       </span>
                     </div>
                     <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
-                      Rules are stored in this browser until you wire persistence.
+                      Custom rules set by instructor.
                     </p>
                   </div>
                   <span className="self-start text-[12px] font-medium text-[var(--muted)] sm:self-auto">Edit rules →</span>

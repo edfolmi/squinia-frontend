@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authFetchMe, authLogin, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
+import { authFetchMe, authLogin, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
 
 export function LoginForm() {
   const router = useRouter();
@@ -75,13 +74,11 @@ export function LoginForm() {
       >
         {loading ? "Signing in…" : "Sign in"}
       </button>
-      {!authApiConfigured() ? (
-        <p className="text-center text-[12px] leading-relaxed text-[var(--faint)]">
-          Auth API URL not set. Sign in will show an error unless you configure{" "}
-          <span className="font-mono text-[11px]">NEXT_PUBLIC_API_BASE</span>.
-        </p>
-      ) : null}
-      <PreviewContinue href="/onboarding" label="Skip to onboarding (preview)" />
+      <p className="text-center text-[13px] text-[var(--muted)]">
+        <a href="/forgot-password" className="font-medium text-[#111111] underline underline-offset-2">
+          Forgot password?
+        </a>
+      </p>
     </form>
   );
 }

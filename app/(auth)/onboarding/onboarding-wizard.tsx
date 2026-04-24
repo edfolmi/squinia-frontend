@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
 import { authCompleteOnboarding } from "../_lib/auth-api";
 
 const STUDENT_GOALS = [
@@ -214,7 +213,6 @@ export function OnboardingWizard() {
         </form>
       ) : null}
 
-      <PreviewContinue href="/dashboard" label="Preview: skip to learner dashboard" />
       <p className="text-center text-[12px] text-[var(--faint)]">
         Need a different account?{" "}
         <Link href="/login" className="font-medium text-[var(--muted)] underline underline-offset-2 hover:text-[#111111]">

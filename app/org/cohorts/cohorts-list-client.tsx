@@ -54,8 +54,7 @@ export function CohortsListClient() {
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Cohorts</h1>
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Live data from your tenant. Create cohorts in the backend or via API; this list loads from{" "}
-            <span className="font-mono text-[11px]">GET /api/v1/cohorts</span>.
+            Manage your learning cohorts, track progress, and monitor completion rates.
           </p>
         </div>
         <Link

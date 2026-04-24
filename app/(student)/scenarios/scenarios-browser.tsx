@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { agentRoleLabel, scenarioDifficultyLabel, sessionModeToUiKind } from "@/app/_lib/simulation-mappers";
+import { agentRoleLabel, scenarioDifficultyLabel, scenarioConfigToUiKind } from "@/app/_lib/simulation-mappers";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { StartSimulationButton } from "../../simulation/_components/start-simulation-button";
@@ -17,6 +17,7 @@ type ScenarioApi = {
   difficulty?: string;
   estimated_minutes?: number;
   status?: string;
+  config?: Record<string, unknown> | null;
 };
 
 function toPublished(s: ScenarioApi): PublishedScenario {
@@ -27,7 +28,7 @@ function toPublished(s: ScenarioApi): PublishedScenario {
     summary: typeof s.description === "string" ? s.description : "",
     role: agentRoleLabel(s.agent_role),
     difficulty: diff,
-    kind: sessionModeToUiKind("TEXT") as SimulationKind,
+    kind: scenarioConfigToUiKind(s.config) as SimulationKind,
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
   };
 }

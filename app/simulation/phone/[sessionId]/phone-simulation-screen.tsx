@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { LiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
+import { endBackendSimulationSession, isBackendSessionId } from "../../_lib/backend-simulation";
 import { buildStoredPhoneReport, saveSessionReport } from "../../_lib/session-report";
 import { usePhoneSimulationAudio } from "./hooks/use-phone-simulation-audio";
 
@@ -241,8 +243,14 @@ export function PhoneSimulationScreen({
 
   const audio = usePhoneSimulationAudio();
 
+  const useBackendLiveKit = useMemo(
+    () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
+    [sessionId],
+  );
+
   useEffect(() => {
     if (phase !== "live") return;
+    if (useBackendLiveKit) return;
     let cancelled = false;
     void (async () => {
       await audio.startPipeline();
@@ -252,7 +260,7 @@ export function PhoneSimulationScreen({
       cancelled = true;
       audio.resetPipeline();
     };
-  }, [phase, audio.startPipeline, audio.resetPipeline]);
+  }, [phase, useBackendLiveKit, audio.startPipeline, audio.resetPipeline]);
 
   useEffect(() => {
     const t = audio.micStream?.getAudioTracks()[0];
@@ -298,7 +306,11 @@ export function PhoneSimulationScreen({
     if (!ok) return;
     setSavingReport(true);
     try {
-      const blob = phase === "live" ? await audio.finalizeRecording() : null;
+      if (useBackendLiveKit && phase === "live") {
+        await endBackendSimulationSession(sessionId);
+      }
+      const blob =
+        phase === "live" && !useBackendLiveKit ? await audio.finalizeRecording() : null;
       audio.resetPipeline();
       const payload = buildStoredPhoneReport({
         sessionId,
@@ -308,7 +320,7 @@ export function PhoneSimulationScreen({
         callerSubtitle: callerNumber,
         callElapsedSec: phase === "live" ? callElapsed : 0,
         scorecardLabel,
-        recording: blob,
+        recording: blob ?? undefined,
         recordingMime: blob?.type,
       });
       try {
@@ -326,9 +338,12 @@ export function PhoneSimulationScreen({
     }
   }
 
-  function requestEndCall() {
+  async function requestEndCall() {
     const ok = window.confirm("End this call?");
     if (!ok) return;
+    if (useBackendLiveKit) {
+      await endBackendSimulationSession(sessionId);
+    }
     audio.resetPipeline();
     setPhase("prepare");
     setCallElapsed(0);
@@ -560,7 +575,12 @@ export function PhoneSimulationScreen({
 
           {phase === "live" ? (
             <>
-              <div className="flex flex-1 flex-col items-center justify-center px-6 pb-28 pt-12 text-center">
+              <div className="flex flex-1 flex-col items-center justify-center px-6 pb-28 pt-8 text-center">
+                {useBackendLiveKit ? (
+                  <div className="mb-6 w-full max-w-lg">
+                    <LiveKitRoomStage sessionId={sessionId} mode="audio" />
+                  </div>
+                ) : null}
                 <p className="font-mono text-[2rem] font-medium tabular-nums tracking-tight text-white sm:text-[2.25rem]">
                   {formatCallTime(callElapsed)}
                 </p>
@@ -573,13 +593,15 @@ export function PhoneSimulationScreen({
                     Muted
                   </p>
                 ) : null}
-                {audio.recording ? (
+                {!useBackendLiveKit && audio.recording ? (
                   <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-300/90">
                     Recording your line
                   </p>
                 ) : null}
                 <p className="mt-4 max-w-sm text-[12px] leading-relaxed text-white/45">
-                  Your microphone is captured in-browser for replay after you end the simulation.
+                  {useBackendLiveKit
+                    ? "Voice runs through LiveKit with the workshop agent worker. End the simulation when you are finished."
+                    : "Your microphone is captured in-browser for replay after you end the simulation."}
                 </p>
               </div>
 
@@ -615,7 +637,7 @@ export function PhoneSimulationScreen({
                   </button>
                   <button
                     type="button"
-                    onClick={requestEndCall}
+                    onClick={() => void requestEndCall()}
                     className="sim-transition cursor-pointer rounded-2xl bg-[#dc2626] px-8 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-[0_8px_24px_-8px_rgba(220,38,38,0.5)] hover:bg-[#b91c1c]"
                   >
                     End call
@@ -681,8 +703,7 @@ export function PhoneSimulationScreen({
                 <p className="mt-6 text-[14px] leading-relaxed text-[var(--muted)]">
                   You are signed in as{" "}
                   <span className="font-medium text-[#111111]">{learnerName}</span>. While live, your
-                  microphone is recorded in this browser for the session report; speaker checks stay
-                  local until you wire device APIs.
+                  microphone is recorded for the session report. Speaker output is checked locally.
                 </p>
               </section>
               <p className="mt-10 font-mono text-[10px] tracking-[0.14em] text-[var(--faint)]">

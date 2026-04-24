@@ -4,8 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
-import { authApiConfigured, authForgotPassword } from "../_lib/auth-api";
+import { authForgotPassword } from "../_lib/auth-api";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -22,10 +21,6 @@ export function ForgotPasswordForm() {
       const res = await authForgotPassword({ email: email.trim() });
       if (res.ok) {
         setSuccess("If an account exists for that email, we sent reset instructions.");
-        return;
-      }
-      if (!authApiConfigured()) {
-        setSuccess("Preview: in production your API would email a reset link.");
         return;
       }
       setError(res.message);
@@ -58,7 +53,6 @@ export function ForgotPasswordForm() {
       >
         {loading ? "Sending…" : "Send reset link"}
       </button>
-      <PreviewContinue href="/reset-password?token=preview-token" label="Preview: open reset-password" />
     </form>
   );
 }

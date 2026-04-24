@@ -56,27 +56,6 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/90 px-4 backdrop-blur-sm sm:px-6">
           <p className="truncate text-[14px] font-medium tracking-[-0.02em] text-[#111111]">Learning workspace</p>
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/login"
-              className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/org/cohorts"
-              className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
-            >
-              Org
-            </Link>
-            <Link
-              href="/instructor/assignments"
-              className="hidden text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline sm:inline"
-            >
-              Instructor
-            </Link>
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)] sm:inline">
-              Preview
-            </span>
             <StudentProfileMenu />
           </div>
         </header>

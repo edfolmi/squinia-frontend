@@ -66,7 +66,7 @@ export function AnalyticsPageClient() {
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Analytics</h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          Cohort-level averages from <span className="font-mono text-[11px]">GET /api/v1/analytics/cohorts/…</span>.
+          Cohort-level performance metrics and skill insights across your organization.
         </p>
       </div>
 

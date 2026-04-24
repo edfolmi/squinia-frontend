@@ -42,7 +42,7 @@ export function OrgScenariosListClient() {
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenario library</h1>
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Scenarios from <span className="font-mono text-[11px]">GET /api/v1/scenarios</span> for your tenant.
+            Build and manage simulation scenarios for your learners.
           </p>
         </div>
         <Link

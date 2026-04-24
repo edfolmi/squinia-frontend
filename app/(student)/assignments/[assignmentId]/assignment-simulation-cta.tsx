@@ -33,7 +33,7 @@ export function AssignmentSimulationCta({
         disabled={atMax}
         title={
           atMax
-            ? `This assignment allows up to ${rules.maxAttempts} attempt(s); that limit is reached in this preview.`
+            ? `This assignment allows up to ${rules.maxAttempts} attempt(s). Limit reached.`
             : undefined
         }
         className={buttonClassName}
@@ -41,12 +41,12 @@ export function AssignmentSimulationCta({
         Start new attempt
       </StartSimulationButton>
       <p className="text-[12px] leading-relaxed text-[var(--muted)]">
-        Attempts used in this browser preview:{" "}
+        Attempts:{" "}
         <span className="font-mono tabular-nums text-[#111111]">
           {attemptsUsed}/{rules.maxAttempts}
         </span>
         {atMax
-          ? " — you cannot start another attempt until your instructor raises the limit or you use fresh preview data."
+          ? " — you cannot start another attempt. Contact your instructor to raise the limit."
           : remaining === 1
             ? " — one attempt left."
             : ` — ${remaining} attempts left.`}

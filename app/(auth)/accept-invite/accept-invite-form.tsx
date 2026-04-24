@@ -6,8 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { PreviewContinue } from "../_components/preview-continue";
-import { authAcceptInvite, authApiConfigured, authFetchMe, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
+import { authAcceptInvite, authFetchMe, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
 
 type Props = {
   initialToken: string;
@@ -53,10 +52,6 @@ export function AcceptInviteForm({ initialToken, orgName }: Props) {
         const dest = postAuthDestination(me.ok ? me.data : null);
         router.push(dest);
         router.refresh();
-        return;
-      }
-      if (!authApiConfigured()) {
-        router.push("/onboarding?role=admin");
         return;
       }
       setError(res.message);
@@ -134,7 +129,6 @@ export function AcceptInviteForm({ initialToken, orgName }: Props) {
           Sign in instead
         </Link>
       </p>
-      <PreviewContinue href="/onboarding?role=admin" label="Preview: skip to org onboarding" />
     </form>
   );
 }

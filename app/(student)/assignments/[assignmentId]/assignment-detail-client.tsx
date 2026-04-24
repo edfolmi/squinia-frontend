@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { agentRoleLabel, scenarioDifficultyLabel, sessionModeToUiKind } from "@/app/_lib/simulation-mappers";
+import { agentRoleLabel, scenarioDifficultyLabel, scenarioConfigToUiKind, sessionModeToUiKind } from "@/app/_lib/simulation-mappers";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { bestScoreForScenario, countAttemptsForScenario } from "../../_lib/assignment-attempts";
@@ -108,13 +108,14 @@ export function AssignmentDetailClient() {
       const sc = await v1.get<{ scenario: Record<string, unknown> }>(`scenarios/${scenarioId}`);
       if (sc.ok) {
         const s = sc.data.scenario;
+        const cfg = typeof s.config === "object" && s.config !== null ? s.config : undefined;
         setScenario({
           id: String(s.id),
           title: String(s.title ?? "Scenario"),
           summary: typeof s.description === "string" ? s.description : "",
           role: agentRoleLabel(typeof s.agent_role === "string" ? s.agent_role : ""),
           difficulty: scenarioDifficultyLabel(typeof s.difficulty === "string" ? s.difficulty : "") as PublishedScenario["difficulty"],
-          kind: sessionModeToUiKind("TEXT") as SimulationKind,
+          kind: scenarioConfigToUiKind(cfg) as SimulationKind,
           estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
         });
       } else {

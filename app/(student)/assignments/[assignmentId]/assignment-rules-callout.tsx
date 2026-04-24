@@ -17,7 +17,7 @@ export function AssignmentRulesCallout({ assignmentId, defaults, bestScore }: Pr
       <p>
         <span className="font-medium text-[#111111]">Minimum report score:</span>{" "}
         <span className="font-mono tabular-nums text-[#111111]">{rules.minScorePercent}%</span> or higher on at least
-        one attempt (instructor rule). Best score in this preview:{" "}
+        one attempt (instructor rule). Your best score:{" "}
         {bestScore === null ? (
           <span className="text-[var(--faint)]">—</span>
         ) : (

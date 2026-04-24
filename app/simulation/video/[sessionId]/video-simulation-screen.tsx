@@ -9,7 +9,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { LiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
+import { endBackendSimulationSession, isBackendSessionId } from "../../_lib/backend-simulation";
 import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
@@ -276,6 +278,11 @@ export function VideoSimulationScreen({
     [sessionId],
   );
 
+  const useBackendLiveKit = useMemo(
+    () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
+    [sessionId],
+  );
+
   useEffect(() => {
     if (phase !== "micTest") return;
     const id = window.setInterval(() => {
@@ -301,7 +308,7 @@ export function VideoSimulationScreen({
 
   /** After loading, enter live and prompt for camera + mic once. */
   useEffect(() => {
-    if (phase !== "live") return;
+    if (phase !== "live" || useBackendLiveKit) return;
     let cancelled = false;
     void (async () => {
       setCameraBusy(true);
@@ -314,10 +321,11 @@ export function VideoSimulationScreen({
     return () => {
       cancelled = true;
     };
-  }, [phase, media.startCamera]);
+  }, [phase, useBackendLiveKit, media.startCamera]);
 
   /** Restart recording whenever live, not already recording, and capture tracks exist (e.g. after screen share toggles). */
   useEffect(() => {
+    if (useBackendLiveKit) return;
     if (phase !== "live") {
       recordKickRef.current = false;
       return;
@@ -345,9 +353,11 @@ export function VideoSimulationScreen({
     media.recording,
     media.error,
     media.startRecording,
+    useBackendLiveKit,
   ]);
 
   useEffect(() => {
+    if (useBackendLiveKit) return;
     const main = mainVideoRef.current;
     const pip = pipVideoRef.current;
     if (phase !== "live") {
@@ -371,7 +381,7 @@ export function VideoSimulationScreen({
     } else if (pip) {
       pip.srcObject = null;
     }
-  }, [phase, media.screenStream, media.cameraStream]);
+  }, [phase, useBackendLiveKit, media.screenStream, media.cameraStream]);
 
   function formatCallTime(totalSec: number) {
     const m = Math.floor(totalSec / 60)
@@ -394,7 +404,10 @@ export function VideoSimulationScreen({
     }
     setSavingReport(true);
     try {
-      const blob = await media.finalizeRecording();
+      if (useBackendLiveKit && phase === "live") {
+        await endBackendSimulationSession(sessionId);
+      }
+      const blob = useBackendLiveKit ? null : await media.finalizeRecording();
       media.stopScreen();
       media.stopCamera();
       const payload = buildStoredVideoReport({
@@ -424,8 +437,11 @@ export function VideoSimulationScreen({
     }
   }
 
-  function requestEndCall() {
+  async function requestEndCall() {
     if (!window.confirm("End this call? Recording will stop and capture will end.")) return;
+    if (useBackendLiveKit) {
+      await endBackendSimulationSession(sessionId);
+    }
     media.stopRecording();
     media.stopScreen();
     media.stopCamera();
@@ -662,6 +678,13 @@ export function VideoSimulationScreen({
           {live ? (
             <>
               <div className="relative min-h-0 flex-1">
+                {useBackendLiveKit ? (
+                  <div className="absolute inset-0 z-20 flex flex-col bg-[#1e1e1e]">
+                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
+                      <LiveKitRoomStage sessionId={sessionId} mode="video" className="w-full max-w-5xl" />
+                    </div>
+                  </div>
+                ) : null}
                 {media.screenStream ? (
                   <video
                     ref={mainVideoRef}
@@ -806,7 +829,7 @@ export function VideoSimulationScreen({
                   )}
                   <button
                     type="button"
-                    onClick={requestEndCall}
+                    onClick={() => void requestEndCall()}
                     className="sim-transition cursor-pointer rounded-xl bg-[#dc2626] px-5 py-3 text-[12px] font-semibold tracking-wide text-white shadow-[0_8px_24px_-8px_rgba(220,38,38,0.5)] hover:bg-[#b91c1c] sm:px-6"
                   >
                     End call

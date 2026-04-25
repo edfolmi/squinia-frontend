@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getAccessToken } from "@/app/(auth)/_lib/auth-tokens";
+
 import {
-  buildSimulationChatWsUrl,
-  clearSimulationWsToken,
   endBackendSimulationSession,
-  getSimulationWsToken,
+  isApiBaseConfigured,
   isBackendSessionId,
+  postTextSimulationChat,
+  postTextSimulationOpening,
 } from "../_lib/backend-simulation";
 import { buildStoredChatReport, saveSessionReport } from "../_lib/session-report";
 import { SimulationTeamFeedbackDialog } from "../_components/team-feedback-dialog";
@@ -296,17 +298,19 @@ export function SimulationScreen({
   const centerRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const elapsedRef = useRef(0);
-  const chatWsRef = useRef<WebSocket | null>(null);
   const streamStateRef = useRef<AiStream | null>(null);
-  const lastSentUserLineIdRef = useRef<string | null>(null);
 
   const live = phase === "live";
   const useBackendChat = useMemo(
     () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
     [sessionId],
   );
-  const [chatWsState, setChatWsState] = useState<"idle" | "connecting" | "open" | "error">("idle");
-  const replyBlocked = useBackendChat && live && composeMode === "reply" && chatWsState !== "open";
+  const [chatHttpError, setChatHttpError] = useState<string | null>(null);
+  const replyBlocked =
+    useBackendChat &&
+    live &&
+    composeMode === "reply" &&
+    (!getAccessToken() || !isApiBaseConfigured());
   const sessionBusy = aiTyping || aiStream !== null;
   const initials = useMemo(() => initialsFrom(personaName), [personaName]);
 
@@ -322,124 +326,41 @@ export function SimulationScreen({
 
   useEffect(() => {
     if (!live) {
-      lastSentUserLineIdRef.current = null;
       streamStateRef.current = null;
     }
   }, [live]);
 
   useEffect(() => {
-    if (!live || !useBackendChat) {
-      setChatWsState("idle");
-      const existing = chatWsRef.current;
-      if (existing) {
-        existing.onmessage = null;
-        existing.onerror = null;
-        existing.onclose = null;
-        existing.close();
-        chatWsRef.current = null;
-      }
-      return;
-    }
-
-    const tok = getSimulationWsToken(sessionId);
-    const url = tok ? buildSimulationChatWsUrl(sessionId, tok) : null;
-    if (!url) {
-      setChatWsState("error");
-      return;
-    }
-
-    setChatWsState("connecting");
-    const ws = new WebSocket(url);
-    chatWsRef.current = ws;
-
-    ws.onopen = () => setChatWsState("open");
-
-    ws.onerror = () => setChatWsState("error");
-
-    ws.onmessage = (ev) => {
-      let raw: unknown;
+    if (!live || !useBackendChat) return;
+    let cancelled = false;
+    setAiTyping(true);
+    void (async () => {
       try {
-        raw = JSON.parse(String(ev.data));
-      } catch {
-        return;
-      }
-      if (!raw || typeof raw !== "object") return;
-      const msg = raw as Record<string, unknown>;
-      const t = msg.type;
-
-      if (t === "error") {
-        const err = (msg.error as Record<string, unknown> | undefined) ?? {};
-        setAiTyping(false);
-        streamStateRef.current = null;
-        setAiStream(null);
-        window.alert(String(err.message ?? "Simulation chat error"));
-        return;
-      }
-
-      if (t === "ASSISTANT_TOKEN") {
-        const data = (msg.data as Record<string, unknown> | undefined) ?? {};
-        const token = typeof data.token === "string" ? data.token : "";
-        if (!token) return;
-        setAiTyping(false);
-        setAiStream((prev) => {
-          const next = prev
-            ? { ...prev, full: prev.full + token, shown: prev.full + token }
-            : {
-                lineId: crypto.randomUUID(),
-                full: token,
-                shown: token,
-                offsetSec: elapsedRef.current,
-              };
-          streamStateRef.current = next;
-          return next;
-        });
-        return;
-      }
-
-      if (t === "ASSISTANT_DONE") {
-        setAiTyping(false);
-        const snap = streamStateRef.current;
-        streamStateRef.current = null;
-        setAiStream(null);
-        if (snap) {
-          const text = snap.full.trim() || "…";
-          setLines((lp) => [...lp, { id: snap.lineId, role: "ai", text, offsetSec: snap.offsetSec }]);
+        const res = await postTextSimulationOpening(sessionId);
+        if (cancelled) return;
+        if (!res.ok) {
+          setChatHttpError(res.message);
+          setLines([
+            {
+              id: crypto.randomUUID(),
+              role: "ai",
+              text: `We could not load the facilitator's opening (${res.message}). Try ending the session and starting again.`,
+              offsetSec: 0,
+            },
+          ]);
+          return;
         }
-        return;
+        const text = (res.data.assistant_content || "").trim() || "…";
+        setLines([{ id: crypto.randomUUID(), role: "ai", text, offsetSec: 0 }]);
+      } finally {
+        if (!cancelled) setAiTyping(false);
       }
-    };
-
-    ws.onclose = () => {
-      chatWsRef.current = null;
-      setChatWsState((prev) => (prev === "open" || prev === "connecting" ? "error" : "idle"));
-    };
-
+    })();
     return () => {
-      ws.onmessage = null;
-      ws.onerror = null;
-      ws.onclose = null;
-      ws.close();
-      if (chatWsRef.current === ws) chatWsRef.current = null;
-      setChatWsState("idle");
+      cancelled = true;
+      setAiTyping(false);
     };
   }, [live, useBackendChat, sessionId]);
-
-  useEffect(() => {
-    if (!live || !useBackendChat) return;
-    const ws = chatWsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    const last = lines[lines.length - 1];
-    if (!last || last.role !== "user" || last.text.startsWith("Note —")) return;
-    if (lastSentUserLineIdRef.current === last.id) return;
-    lastSentUserLineIdRef.current = last.id;
-    setAiTyping(true);
-    try {
-      ws.send(JSON.stringify({ type: "USER_MESSAGE", data: { text: last.text } }));
-    } catch {
-      setAiTyping(false);
-      lastSentUserLineIdRef.current = null;
-    }
-  }, [lines, live, useBackendChat, chatWsState]);
 
   useEffect(() => {
     const el = centerRef.current;
@@ -481,20 +402,48 @@ export function SimulationScreen({
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
-      const body =
-        composeMode === "note" ? `Note — ${trimmed}` : trimmed;
-      setLines((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          text: body,
-          offsetSec: elapsed,
-        },
-      ]);
+      const body = composeMode === "note" ? `Note — ${trimmed}` : trimmed;
+      const userEntry: TranscriptEntry = {
+        id: crypto.randomUUID(),
+        role: "user",
+        text: body,
+        offsetSec: elapsed,
+      };
+
+      if (live && useBackendChat && composeMode === "reply" && !body.startsWith("Note —")) {
+        setChatHttpError(null);
+        setLines((prev) => [...prev, userEntry]);
+        setDraft("");
+        setAiTyping(true);
+        void (async () => {
+          try {
+            const res = await postTextSimulationChat(sessionId, userEntry.text);
+            if (!res.ok) {
+              setChatHttpError(res.message);
+              setLines((prev) => prev.filter((l) => l.id !== userEntry.id));
+              return;
+            }
+            const reply = (res.data.assistant_content || "").trim() || "…";
+            setLines((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "ai",
+                text: reply,
+                offsetSec: elapsedRef.current,
+              },
+            ]);
+          } finally {
+            setAiTyping(false);
+          }
+        })();
+        return;
+      }
+
+      setLines((prev) => [...prev, userEntry]);
       setDraft("");
     },
-    [elapsed, composeMode],
+    [elapsed, composeMode, live, useBackendChat, sessionId],
   );
 
   useEffect(() => {
@@ -571,6 +520,7 @@ export function SimulationScreen({
     setDraft("");
     setAiTyping(false);
     setAiStream(null);
+    setChatHttpError(null);
   }
 
   async function requestEndSession() {
@@ -580,16 +530,7 @@ export function SimulationScreen({
     );
     if (!ok) return;
     if (useBackendChat) {
-      const ws = chatWsRef.current;
-      if (ws) {
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.onclose = null;
-        ws.close();
-        chatWsRef.current = null;
-      }
       await endBackendSimulationSession(sessionId);
-      clearSimulationWsToken(sessionId);
     }
     const payload = buildStoredChatReport({
       sessionId,
@@ -808,11 +749,10 @@ export function SimulationScreen({
 
               {live ? (
                 <ol className="mt-8 list-none p-0 sm:mt-10">
-                  {useBackendChat && lines.length === 0 && !aiStream && !aiTyping ? (
+                  {useBackendChat && lines.length === 0 && !aiStream && aiTyping ? (
                     <li className="mt-2">
                       <p className="text-sm leading-relaxed text-[var(--muted)]">
-                        You are connected to the live facilitator model. Send a reply to begin — notes stay on
-                        this device only.
+                        Your interviewer is opening the conversation from this scenario…
                       </p>
                     </li>
                   ) : null}
@@ -978,16 +918,20 @@ export function SimulationScreen({
                   <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
                     <p className="mr-auto max-w-[min(100%,20rem)] font-mono text-[10px] leading-snug tracking-[0.06em] text-[var(--muted)] sm:order-first">
                       {replyBlocked
-                        ? chatWsState === "connecting"
-                          ? "Connecting to facilitator…"
-                          : "Chat link unavailable — start again from the scenario hub."
-                        : sessionBusy
-                          ? "Wait for the interviewer to finish."
-                          : !draft.trim()
-                            ? composeMode === "note"
-                              ? "Add a note, then send. Notes are private."
-                              : "Add a reply to enable Send."
-                            : "Enter sends · Shift+Enter newline"}
+                        ? !getAccessToken()
+                          ? "Sign in required — no access token."
+                          : !isApiBaseConfigured()
+                            ? "Set NEXT_PUBLIC_API_BASE to your API (e.g. http://localhost:8000)."
+                            : "Chat unavailable."
+                        : chatHttpError
+                          ? chatHttpError
+                          : sessionBusy
+                            ? "Wait for the interviewer to finish."
+                            : !draft.trim()
+                              ? composeMode === "note"
+                                ? "Add a note, then send. Notes are private."
+                                : "Add a reply to enable Send."
+                              : "Enter sends · Shift+Enter newline"}
                     </p>
                     <button
                       type="button"

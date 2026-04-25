@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import type { SimulationKind } from "../_lib/attempt-id";
 import { appendAttemptToScenarioId, buildSimulationPath, newAttemptToken } from "../_lib/attempt-id";
-import { setSimulationWsToken, startBackendSimulationSession } from "../_lib/backend-simulation";
+import { startBackendSimulationSession } from "../_lib/backend-simulation";
 
 type Props = {
   scenarioId: string;
@@ -20,7 +20,7 @@ const useBackendSessions = () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS ==
 
 /**
  * Navigates to a simulation attempt. With `NEXT_PUBLIC_USE_BACKEND_SESSIONS=1`, creates
- * `POST /api/v1/sessions` first so phone/video can join LiveKit and chat can use the WebSocket.
+ * `POST /api/v1/sessions` first so phone/video can join LiveKit; TEXT chat uses HTTP `/opening` and `/chat`.
  */
 export function StartSimulationButton({
   scenarioId,
@@ -48,7 +48,6 @@ export function StartSimulationButton({
             const started = await startBackendSimulationSession({ scenarioId, mode });
             setBusy(false);
             if (!started) return;
-            setSimulationWsToken(started.session_id, started.ws_token);
             router.push(buildSimulationPath(started.session_id, kind));
           })();
           return;

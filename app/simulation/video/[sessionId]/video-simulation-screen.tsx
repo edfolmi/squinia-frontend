@@ -679,10 +679,16 @@ export function VideoSimulationScreen({
             <>
               <div className="relative min-h-0 flex-1">
                 {useBackendLiveKit ? (
-                  <div className="absolute inset-0 z-20 flex flex-col bg-[#1e1e1e]">
-                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
-                      <LiveKitRoomStage sessionId={sessionId} mode="video" className="w-full max-w-5xl" />
-                    </div>
+                  <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[#1e1e1e]">
+                    <LiveKitRoomStage
+                      sessionId={sessionId}
+                      mode="video"
+                      className="flex min-h-0 flex-1 flex-col"
+                      remoteName={remoteName}
+                      remoteRole={remoteRole}
+                      learnerName={learnerName}
+                      elapsedLabel={formatCallTime(callElapsed)}
+                    />
                   </div>
                 ) : null}
                 {media.screenStream ? (
@@ -778,11 +784,15 @@ export function VideoSimulationScreen({
                 </div>
               ) : null}
 
-              <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-center gap-2 px-4 pb-8 pt-4">
+              <div
+                className={`absolute bottom-0 left-0 right-0 flex flex-col items-center gap-2 px-4 pb-8 pt-4 ${
+                  useBackendLiveKit ? "z-30" : "z-10"
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/45 px-2 py-2 backdrop-blur-sm sm:gap-2 sm:px-3">
                   <button
                     type="button"
-                    disabled={!media.cameraStream}
+                    disabled={useBackendLiveKit || !media.cameraStream}
                     onClick={() => media.toggleCameraVideo()}
                     className={`sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                       videoOn
@@ -796,7 +806,7 @@ export function VideoSimulationScreen({
                   </button>
                   <button
                     type="button"
-                    disabled={!media.cameraStream}
+                    disabled={useBackendLiveKit || !media.cameraStream}
                     onClick={() => media.toggleCameraMic()}
                     className={`sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                       micOn
@@ -808,25 +818,27 @@ export function VideoSimulationScreen({
                   >
                     <IconMic />
                   </button>
-                  {!media.screenStream ? (
-                    <button
-                      type="button"
-                      onClick={() => void media.startScreenShare()}
-                      className="sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/15"
-                      aria-label="Share screen"
-                    >
-                      <IconMonitor />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => media.stopScreen()}
-                      className="sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border border-sky-400/50 bg-sky-600 text-white shadow-[0_0_0_2px_rgba(14,165,233,0.35)]"
-                      aria-label="Stop sharing"
-                    >
-                      <IconMonitor />
-                    </button>
-                  )}
+                  {!useBackendLiveKit ? (
+                    !media.screenStream ? (
+                      <button
+                        type="button"
+                        onClick={() => void media.startScreenShare()}
+                        className="sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white hover:bg-white/15"
+                        aria-label="Share screen"
+                      >
+                        <IconMonitor />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => media.stopScreen()}
+                        className="sim-transition flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl border border-sky-400/50 bg-sky-600 text-white shadow-[0_0_0_2px_rgba(14,165,233,0.35)]"
+                        aria-label="Stop sharing"
+                      >
+                        <IconMonitor />
+                      </button>
+                    )
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void requestEndCall()}

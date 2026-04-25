@@ -2,23 +2,123 @@
 
 import { useEffect, useState } from "react";
 
-import { LiveKitRoom, RoomAudioRenderer } from "@livekit/components-react";
-import { VideoConference } from "@livekit/components-react/prefabs";
+import type { TrackReference } from "@livekit/components-core";
+import { LiveKitRoom, RoomAudioRenderer, VideoTrack, useLocalParticipant } from "@livekit/components-react";
 
 import { issueLiveKitConnection } from "../_lib/backend-simulation";
 
 type Props = {
   sessionId: string;
-  /** Voice (phone) uses audio-only; video uses bundled conference UI. */
+  /** Voice (phone): publish/listen audio only. Video: local camera pip + remote audio + avatar (training layout). */
   mode: "audio" | "video";
   className?: string;
+  /** Video layout: interviewer / opponent shown as initials avatar (remote is audio-only from agent). */
+  remoteName?: string;
+  remoteRole?: string;
+  learnerName?: string;
+  /** Call timer label, e.g. ``00:12`` — matches the non-LiveKit video stage. */
+  elapsedLabel?: string;
 };
+
+function initials(name: string) {
+  const p = name.trim().split(/\s+/).filter(Boolean);
+  if (p.length === 0) return "?";
+  const a = p[0]?.[0] ?? "?";
+  const b = p.length > 1 ? p[p.length - 1]?.[0] : p[0]?.[1];
+  return `${a}${b ?? ""}`.toUpperCase();
+}
+
+/**
+ * Remote participant is expected to be **audio-only** (LiveKit agent). Learner publishes camera + mic.
+ * Mirrors the original video simulation: large persona avatar + timer, small self-view pip.
+ */
+function VideoTrainingLiveKitLayout({
+  remoteName,
+  remoteRole,
+  learnerName,
+  elapsedLabel,
+}: {
+  remoteName: string;
+  remoteRole?: string;
+  learnerName: string;
+  elapsedLabel?: string;
+}) {
+  const { localParticipant, cameraTrack } = useLocalParticipant();
+
+  const trackRef: TrackReference | undefined =
+    cameraTrack && cameraTrack.track
+      ? {
+          participant: localParticipant,
+          publication: cameraTrack,
+          source: cameraTrack.source,
+        }
+      : undefined;
+
+  return (
+    <div className="relative flex h-full min-h-[280px] w-full flex-col">
+      <RoomAudioRenderer />
+
+      <div className="flex flex-1 flex-col items-center justify-center px-6 pb-40 pt-10 text-center">
+        <div className="relative flex h-32 w-32 items-center justify-center sm:h-36 sm:w-36">
+          <div className="absolute inset-0 rounded-full bg-violet-500/15 blur-xl" aria-hidden />
+          <div className="absolute inset-2 rounded-full border border-violet-400/25" aria-hidden />
+          <div className="absolute inset-0 rounded-full border border-violet-300/20" aria-hidden />
+          <div className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10 sm:h-32 sm:w-32 sm:text-3xl">
+            {initials(remoteName)}
+          </div>
+        </div>
+
+        {elapsedLabel ? (
+          <p className="mt-10 font-mono text-[2rem] font-medium tabular-nums tracking-tight text-white sm:text-[2.25rem]">
+            {elapsedLabel}
+          </p>
+        ) : null}
+
+        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">{remoteName}</p>
+        {remoteRole ? <p className="mt-2 max-w-md text-[15px] text-white/65">{remoteRole}</p> : null}
+        <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-white/45">
+          Training partner is audio-only over LiveKit. Your camera is shown in the preview below.
+        </p>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-28 right-5 z-10 w-[min(42%,220px)] sm:right-8 sm:w-56">
+        <div className="pointer-events-auto overflow-hidden rounded-2xl border border-white/15 bg-black/80 shadow-lg ring-1 ring-white/10">
+          <div className="relative aspect-video w-full bg-zinc-900">
+            {trackRef ? (
+              <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full min-h-[120px] items-center justify-center px-3 text-center text-[12px] text-white/50">
+                Starting camera…
+              </div>
+            )}
+            <span
+              className={`absolute right-2 top-2 h-2 w-2 rounded-full ${
+                cameraTrack && !cameraTrack.isMuted ? "bg-emerald-400" : "bg-zinc-500"
+              }`}
+              title={cameraTrack && !cameraTrack.isMuted ? "Camera on" : "Camera off"}
+              aria-hidden
+            />
+            <p className="absolute bottom-2 left-2 text-[11px] font-semibold text-white/95">{learnerName}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Joins the LiveKit room for a **persisted** simulation session (`POST /api/v1/sessions` UUID).
  * Requires `NEXT_PUBLIC_USE_BACKEND_SESSIONS` and LiveKit env on the API.
  */
-export function LiveKitRoomStage({ sessionId, mode, className }: Props) {
+export function LiveKitRoomStage({
+  sessionId,
+  mode,
+  className,
+  remoteName = "Interviewer",
+  remoteRole,
+  learnerName = "You",
+  elapsedLabel,
+}: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +145,9 @@ export function LiveKitRoomStage({ sessionId, mode, className }: Props) {
 
   if (error) {
     return (
-      <div className={`rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-center text-[13px] text-amber-50 ${className ?? ""}`}>
+      <div
+        className={`rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-center text-[13px] text-amber-50 ${className ?? ""}`}
+      >
         {error}
       </div>
     );
@@ -59,13 +161,18 @@ export function LiveKitRoomStage({ sessionId, mode, className }: Props) {
     );
   }
 
+  const publishVideo = mode === "video";
+
   return (
-    <div className={className}>
-      <LiveKitRoom serverUrl={url} token={token} connect audio video={mode === "video"}>
+    <div className={`min-h-0 flex-1 ${className ?? ""}`}>
+      <LiveKitRoom serverUrl={url} token={token} connect audio video={publishVideo}>
         {mode === "video" ? (
-          <div className="h-[min(420px,50vh)] w-full max-w-3xl overflow-hidden rounded-2xl bg-black/40">
-            <VideoConference />
-          </div>
+          <VideoTrainingLiveKitLayout
+            remoteName={remoteName}
+            remoteRole={remoteRole}
+            learnerName={learnerName}
+            elapsedLabel={elapsedLabel}
+          />
         ) : (
           <RoomAudioRenderer />
         )}

@@ -5,9 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { parseAttemptSessionId } from "../_lib/attempt-id";
 import {
+  getBackendSessionDetail,
+  getBackendSessionEvaluation,
+  isBackendSessionId,
+  type BackendSessionDetail,
+  type BackendSessionMessage,
+} from "../_lib/backend-simulation";
+import {
   type CompetencyBlock,
   type SessionReportStored,
   type SimulationReportKind,
+  buildEvaluation,
   downloadEvaluationJson,
   formatClock,
   formatMetricDuration,
@@ -69,6 +77,149 @@ function IconChecklist() {
 function normalizeKind(v: string | undefined): SimulationReportKind {
   if (v === "phone" || v === "video" || v === "chat") return v;
   return "chat";
+}
+
+function backendModeToKind(
+  mode: BackendSessionDetail["mode"] | undefined,
+  fallback: SimulationReportKind,
+): SimulationReportKind {
+  if (mode === "TEXT") return "chat";
+  if (mode === "VIDEO") return "video";
+  if (mode === "VOICE") return fallback === "video" ? "video" : "phone";
+  return fallback;
+}
+
+function secondsFromTimestamps(start?: string | null, end?: string | null): number {
+  if (!start || !end) return 0;
+  const s = Date.parse(start);
+  const e = Date.parse(end);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return 0;
+  return Math.max(0, Math.round((e - s) / 1000));
+}
+
+function toTranscript(
+  messages: BackendSessionMessage[],
+  learnerName: string,
+  interviewerName: string,
+): SessionReportStored["transcript"] {
+  const usable = messages.filter((m) => m.role === "USER" || m.role === "ASSISTANT");
+  const startedAt = usable.length > 0 ? Date.parse(usable[0].created_at) : 0;
+  return usable.map((m) => {
+    const ts = Date.parse(m.created_at);
+    const offsetSec =
+      Number.isFinite(ts) && Number.isFinite(startedAt) && ts >= startedAt
+        ? Math.round((ts - startedAt) / 1000)
+        : 0;
+    return {
+      id: m.id,
+      role: m.role === "USER" ? ("learner" as const) : ("interviewer" as const),
+      name: m.role === "USER" ? learnerName : interviewerName,
+      title: undefined,
+      text: m.content,
+      offsetSec,
+    };
+  });
+}
+
+function fromBackendDetail(
+  detail: BackendSessionDetail,
+  sessionId: string,
+  hint: SimulationReportKind,
+): SessionReportStored {
+  const kind = backendModeToKind(detail.mode, hint);
+  const learnerName = "You";
+  const interviewerName = "AI Interviewer";
+  const transcript = toTranscript(detail.messages || [], learnerName, interviewerName);
+  const elapsedSec = secondsFromTimestamps(detail.started_at, detail.ended_at);
+  const scorecardLabel = "Simulation scorecard";
+  const backendEval = detail.evaluation;
+
+  const competencies: CompetencyBlock[] =
+    backendEval?.scores?.map((s, idx) => {
+      const tone: CompetencyBlock["tone"] =
+        s.max_score > 0 && s.score / s.max_score >= 0.8
+          ? "success"
+          : s.max_score > 0 && s.score / s.max_score >= 0.6
+            ? "neutral"
+            : "warn";
+      return {
+        id: `backend-${idx}-${s.criterion}`,
+        title: s.criterion,
+        score: s.score,
+        max: s.max_score || 5,
+        label: tone === "success" ? "Strong" : tone === "neutral" ? "Average" : "Developing",
+        tone,
+        summary: s.rationale || "Performance summary captured by evaluator.",
+        example: s.rationale || "No specific example provided.",
+        improvement: s.rationale || "No specific improvement provided.",
+      };
+    }) || [];
+
+  const fallbackEval = buildEvaluation(kind, elapsedSec, transcript.length, scorecardLabel);
+  const overallMax =
+    competencies.length > 0
+      ? competencies.reduce((acc, c) => acc + c.max, 0)
+      : fallbackEval.overallMax;
+  const overallScore =
+    typeof backendEval?.overall_score === "number"
+      ? backendEval.overall_score
+      : fallbackEval.overallScore;
+  const band: SessionReportStored["evaluation"]["band"] =
+    overallScore >= 82 ? "Great" : overallScore >= 68 ? "Solid" : "Growing";
+
+  return {
+    version: 1,
+    sessionId,
+    kind,
+    scenarioTitle: "Simulation session",
+    learnerName,
+    learnerInitials: "YO",
+    interviewerName,
+    interviewerTitle: detail.mode === "VIDEO" ? "Video interviewer" : "Voice interviewer",
+    endedAt: detail.ended_at || new Date().toISOString(),
+    metrics: {
+      handlingTimeSec: elapsedSec,
+      handlingDeltaSec: 0,
+      frtSec: 0,
+      artSec: 0,
+      transferRatePct: 0,
+      lastMessageSec: transcript.length > 0 ? transcript[transcript.length - 1].offsetSec : 0,
+    },
+    transcript,
+    evaluation: {
+      overallScore,
+      overallMax,
+      band,
+      summary:
+        backendEval?.feedback_summary ||
+        "Evaluation is being finalized. Refresh shortly if detailed feedback is still processing.",
+      scorecardLabel,
+      competencies: competencies.length > 0 ? competencies : fallbackEval.competencies,
+    },
+  };
+}
+
+async function loadBackendReportWithPolling(
+  sessionId: string,
+  kindHint: SimulationReportKind,
+): Promise<SessionReportStored | null> {
+  const detail = await getBackendSessionDetail(sessionId);
+  if (!detail) return null;
+
+  let latest = detail;
+  if (!latest.evaluation || latest.evaluation.status !== "COMPLETED") {
+    for (let i = 0; i < 12; i++) {
+      const ev = await getBackendSessionEvaluation(sessionId);
+      if (ev?.evaluation) {
+        latest = { ...latest, evaluation: ev.evaluation };
+      }
+      if (ev?.status === "COMPLETED" && ev.evaluation) {
+        break;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+    }
+  }
+  return fromBackendDetail(latest, sessionId, kindHint);
 }
 
 function ScoreRing({ score, max, tone }: { score: number; max: number; tone: "success" | "warn" | "neutral" }) {
@@ -178,10 +329,12 @@ export function SimulationReportScreen({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     void (async () => {
       try {
-        const data = await loadSessionReport(sessionId);
+        let data = await loadSessionReport(sessionId);
+        if (!data && isBackendSessionId(sessionId)) {
+          data = await loadBackendReportWithPolling(sessionId, kind);
+        }
         if (cancelled) return;
         setReport(data);
         setLoadError(null);
@@ -197,7 +350,7 @@ export function SimulationReportScreen({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, kind]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -211,7 +364,7 @@ export function SimulationReportScreen({
   const recordingUrl = useMemo(() => {
     if (!report?.recording || report.recording.size === 0) return null;
     return URL.createObjectURL(report.recording);
-  }, [report?.recording]);
+  }, [report]);
 
   useEffect(() => {
     return () => {
@@ -244,7 +397,7 @@ export function SimulationReportScreen({
     } catch {
       return "";
     }
-  }, [effectiveReport?.endedAt]);
+  }, [effectiveReport]);
 
   const downloadRecording = useCallback(() => {
     if (!effectiveReport?.recording || !recordingUrl) return;
@@ -254,7 +407,7 @@ export function SimulationReportScreen({
     const ext = mime.includes("ogg") ? "ogg" : mime.includes("mp4") ? "m4a" : "webm";
     a.download = `squinia-${displayKind}-${sessionId.slice(0, 8)}.${ext}`;
     a.click();
-  }, [effectiveReport?.recording, effectiveReport?.recordingMime, recordingUrl, displayKind, sessionId]);
+  }, [effectiveReport, recordingUrl, displayKind, sessionId]);
 
   const downloadJson = useCallback(() => {
     if (!effectiveReport) return;

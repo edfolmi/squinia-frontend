@@ -11,7 +11,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
-import { endBackendSimulationSession, isBackendSessionId } from "../../_lib/backend-simulation";
+import {
+  endBackendSimulationSession,
+  ingestLiveTranscript,
+  isBackendSessionId,
+  type LiveTranscriptIngestItem,
+} from "../../_lib/backend-simulation";
 import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
@@ -270,6 +275,9 @@ export function VideoSimulationScreen({
   const mainVideoRef = useRef<HTMLVideoElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const recordKickRef = useRef(false);
+  const transcriptQueueRef = useRef<LiveTranscriptIngestItem[]>([]);
+  const transcriptTimerRef = useRef<number | null>(null);
+  const transcriptSendingRef = useRef(false);
 
   const media = useVideoSimulationMedia();
 
@@ -383,6 +391,42 @@ export function VideoSimulationScreen({
     }
   }, [phase, useBackendLiveKit, media.screenStream, media.cameraStream]);
 
+  useEffect(() => {
+    return () => {
+      if (transcriptTimerRef.current) {
+        window.clearTimeout(transcriptTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function flushTranscriptQueue(drain = false) {
+    if (!useBackendLiveKit || transcriptSendingRef.current) return;
+    transcriptSendingRef.current = true;
+    try {
+      do {
+        const batch = transcriptQueueRef.current.splice(0, 40);
+        if (batch.length === 0) break;
+        const accepted = await ingestLiveTranscript(sessionId, batch);
+        if (!accepted) {
+          transcriptQueueRef.current = [...batch, ...transcriptQueueRef.current].slice(0, 200);
+          break;
+        }
+      } while (drain && transcriptQueueRef.current.length > 0);
+    } finally {
+      transcriptSendingRef.current = false;
+    }
+  }
+
+  function queueTranscript(item: LiveTranscriptIngestItem) {
+    if (!useBackendLiveKit) return;
+    transcriptQueueRef.current.push(item);
+    if (transcriptTimerRef.current !== null) return;
+    transcriptTimerRef.current = window.setTimeout(() => {
+      transcriptTimerRef.current = null;
+      void flushTranscriptQueue(false);
+    }, 700);
+  }
+
   function formatCallTime(totalSec: number) {
     const m = Math.floor(totalSec / 60)
       .toString()
@@ -405,7 +449,10 @@ export function VideoSimulationScreen({
     setSavingReport(true);
     try {
       if (useBackendLiveKit && phase === "live") {
+        await flushTranscriptQueue(true);
         await endBackendSimulationSession(sessionId);
+        router.push(`/simulation/${sessionId}/report?kind=video`);
+        return;
       }
       const blob = useBackendLiveKit ? null : await media.finalizeRecording();
       media.stopScreen();
@@ -440,6 +487,7 @@ export function VideoSimulationScreen({
   async function requestEndCall() {
     if (!window.confirm("End this call? Recording will stop and capture will end.")) return;
     if (useBackendLiveKit) {
+      await flushTranscriptQueue(true);
       await endBackendSimulationSession(sessionId);
     }
     media.stopRecording();
@@ -688,6 +736,17 @@ export function VideoSimulationScreen({
                       remoteRole={remoteRole}
                       learnerName={learnerName}
                       elapsedLabel={formatCallTime(callElapsed)}
+                      onTranscriptFinal={(entry) =>
+                        queueTranscript({
+                          role: entry.role,
+                          text: entry.text,
+                          segment_id: entry.segmentId,
+                          participant_identity: entry.participantIdentity,
+                          participant_name: entry.participantName,
+                          offset_ms: callElapsed * 1000,
+                          is_final: true,
+                        })
+                      }
                     />
                   </div>
                 ) : null}

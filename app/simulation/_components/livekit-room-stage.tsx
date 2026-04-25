@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 
 import type { TrackReference } from "@livekit/components-core";
-import { LiveKitRoom, RoomAudioRenderer, VideoTrack, useLocalParticipant } from "@livekit/components-react";
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  VideoTrack,
+  useLocalParticipant,
+  useRoomContext,
+} from "@livekit/components-react";
+import { Participant, RoomEvent, type TranscriptionSegment } from "livekit-client";
 
 import { issueLiveKitConnection } from "../_lib/backend-simulation";
 
@@ -18,6 +25,14 @@ type Props = {
   learnerName?: string;
   /** Call timer label, e.g. ``00:12`` — matches the non-LiveKit video stage. */
   elapsedLabel?: string;
+  onTranscriptFinal?: (entry: {
+    role: "USER" | "ASSISTANT";
+    text: string;
+    segmentId?: string;
+    participantIdentity?: string;
+    participantName?: string;
+    receivedAtMs: number;
+  }) => void;
 };
 
 function initials(name: string) {
@@ -118,6 +133,7 @@ export function LiveKitRoomStage({
   remoteRole,
   learnerName = "You",
   elapsedLabel,
+  onTranscriptFinal,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -166,6 +182,7 @@ export function LiveKitRoomStage({
   return (
     <div className={`min-h-0 flex-1 ${className ?? ""}`}>
       <LiveKitRoom serverUrl={url} token={token} connect audio video={publishVideo}>
+        <LiveKitTranscriptBridge onTranscriptFinal={onTranscriptFinal} />
         {mode === "video" ? (
           <VideoTrainingLiveKitLayout
             remoteName={remoteName}
@@ -179,4 +196,43 @@ export function LiveKitRoomStage({
       </LiveKitRoom>
     </div>
   );
+}
+
+function LiveKitTranscriptBridge({
+  onTranscriptFinal,
+}: {
+  onTranscriptFinal?: Props["onTranscriptFinal"];
+}) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (!onTranscriptFinal) return;
+    const handler = (segments: TranscriptionSegment[], participant?: Participant) => {
+      const localIdentity = room.localParticipant?.identity;
+      const participantIdentity = participant?.identity;
+      const participantName = participant?.name;
+      const role: "USER" | "ASSISTANT" =
+        participantIdentity && participantIdentity === localIdentity ? "USER" : "ASSISTANT";
+
+      for (const seg of segments) {
+        const text = (seg.text || "").trim();
+        if (!text || !seg.final) continue;
+        onTranscriptFinal({
+          role,
+          text,
+          segmentId: seg.id,
+          participantIdentity,
+          participantName,
+          receivedAtMs: Date.now(),
+        });
+      }
+    };
+
+    room.on(RoomEvent.TranscriptionReceived, handler);
+    return () => {
+      room.off(RoomEvent.TranscriptionReceived, handler);
+    };
+  }, [room, onTranscriptFinal]);
+
+  return null;
 }

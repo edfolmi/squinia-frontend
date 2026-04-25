@@ -68,6 +68,84 @@ export async function issueLiveKitConnection(sessionId: string): Promise<LiveKit
   return res.data;
 }
 
+export type LiveTranscriptIngestItem = {
+  role: "USER" | "ASSISTANT";
+  text: string;
+  segment_id?: string;
+  participant_identity?: string;
+  participant_name?: string;
+  offset_ms?: number;
+  is_final?: boolean;
+};
+
+type TranscriptIngestResponse = {
+  accepted: number;
+  skipped: number;
+  turn_count: number;
+};
+
+export async function ingestLiveTranscript(
+  sessionId: string,
+  items: LiveTranscriptIngestItem[],
+): Promise<TranscriptIngestResponse | null> {
+  if (items.length === 0) return { accepted: 0, skipped: 0, turn_count: 0 };
+  const res = await v1.post<TranscriptIngestResponse>(`sessions/${sessionId}/transcript`, { items });
+  if (!res.ok) return null;
+  return res.data;
+}
+
+export type BackendSessionMessage = {
+  id: string;
+  role: "USER" | "ASSISTANT" | "SYSTEM";
+  content: string;
+  content_type: string;
+  meta: Record<string, unknown>;
+  turn_number: number;
+  created_at: string;
+};
+
+export type BackendEvaluationScore = {
+  criterion: string;
+  score: number;
+  max_score: number;
+  rationale?: string | null;
+};
+
+export type BackendEvaluationDetail = {
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  overall_score?: number;
+  feedback_summary?: string;
+  strengths?: string | null;
+  improvements?: string | null;
+  scores?: BackendEvaluationScore[];
+};
+
+export type BackendSessionDetail = {
+  id: string;
+  mode: "TEXT" | "VOICE" | "VIDEO";
+  started_at?: string | null;
+  ended_at?: string | null;
+  messages: BackendSessionMessage[];
+  evaluation?: BackendEvaluationDetail | null;
+};
+
+export async function getBackendSessionDetail(sessionId: string): Promise<BackendSessionDetail | null> {
+  const res = await v1.get<{ session: BackendSessionDetail }>(`sessions/${sessionId}`);
+  if (!res.ok) return null;
+  return res.data.session;
+}
+
+export async function getBackendSessionEvaluation(sessionId: string): Promise<{
+  status: string;
+  evaluation: BackendEvaluationDetail | null;
+} | null> {
+  const res = await v1.get<{ status: string; evaluation: BackendEvaluationDetail | null }>(
+    `sessions/${sessionId}/evaluation`,
+  );
+  if (!res.ok) return null;
+  return res.data;
+}
+
 export async function endBackendSimulationSession(sessionId: string): Promise<boolean> {
   const res = await v1.post(`sessions/${sessionId}/end`, {});
   return res.ok;

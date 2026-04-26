@@ -11,6 +11,10 @@ import {
   isBackendSessionId,
   type LiveTranscriptIngestItem,
 } from "../../_lib/backend-simulation";
+import {
+  disposeLiveKitRecording,
+  finalizeLiveKitRecording,
+} from "../../_lib/livekit-session-recording";
 import { buildStoredPhoneReport, saveSessionReport } from "../../_lib/session-report";
 import { usePhoneSimulationAudio } from "./hooks/use-phone-simulation-audio";
 
@@ -259,6 +263,7 @@ export function PhoneSimulationScreen({
   );
 
   useEffect(() => {
+    if (useBackendLiveKit) return;
     if (phase !== "live") return;
     let cancelled = false;
     void (async () => {
@@ -269,13 +274,14 @@ export function PhoneSimulationScreen({
       cancelled = true;
       audio.resetPipeline();
     };
-  }, [phase, audio.startPipeline, audio.resetPipeline]);
+  }, [phase, useBackendLiveKit, audio.startPipeline, audio.resetPipeline]);
 
   useEffect(() => {
+    if (useBackendLiveKit) return;
     const t = audio.micStream?.getAudioTracks()[0];
     if (!t) return;
     t.enabled = !muted;
-  }, [muted, audio.micStream]);
+  }, [muted, useBackendLiveKit, audio.micStream]);
 
   useEffect(() => {
     if (phase !== "micTest") return;
@@ -420,7 +426,13 @@ export function PhoneSimulationScreen({
     setSavingReport(true);
     try {
       if (useBackendLiveKit && phase === "live") {
-        const blob = await audio.finalizeRecording();
+        const blob = await finalizeLiveKitRecording(sessionId);
+        console.info("[simulation-report] phone finalize", {
+          sessionId,
+          hasBlob: Boolean(blob && blob.size > 0),
+          size: blob?.size ?? 0,
+          type: blob?.type ?? null,
+        });
         await flushTranscriptQueue(true);
         await endBackendSimulationSession(sessionId);
         const payload = buildStoredPhoneReport({
@@ -437,12 +449,14 @@ export function PhoneSimulationScreen({
         try {
           await saveSessionReport(payload);
         } catch {
+          console.error("[simulation-report] phone save with recording failed", { sessionId });
           await saveSessionReport({
             ...payload,
             recording: undefined,
             recordingMime: undefined,
           });
         }
+        await disposeLiveKitRecording(sessionId);
         router.push(`/simulation/${sessionId}/report?kind=phone`);
         return;
       }
@@ -479,7 +493,7 @@ export function PhoneSimulationScreen({
     const ok = window.confirm("End this call?");
     if (!ok) return;
     if (useBackendLiveKit) {
-      await audio.finalizeRecording();
+      await disposeLiveKitRecording(sessionId);
       await flushTranscriptQueue(true);
       await endBackendSimulationSession(sessionId);
     }
@@ -851,7 +865,9 @@ export function PhoneSimulationScreen({
                 <p className="mt-6 text-[14px] leading-relaxed text-[var(--muted)]">
                   You are signed in as{" "}
                   <span className="font-medium text-[#111111]">{learnerName}</span>. While live, your
-                  microphone is recorded for the session report. Speaker output is checked locally.
+                  {useBackendLiveKit
+                    ? " call audio is mixed with the agent voice for the session report."
+                    : " microphone is recorded for the session report. Speaker output is checked locally."}
                 </p>
               </section>
               <p className="mt-10 font-mono text-[10px] tracking-[0.14em] text-[var(--faint)]">

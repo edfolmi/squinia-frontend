@@ -17,6 +17,10 @@ import {
   isBackendSessionId,
   type LiveTranscriptIngestItem,
 } from "../../_lib/backend-simulation";
+import {
+  disposeLiveKitRecording,
+  finalizeLiveKitRecording,
+} from "../../_lib/livekit-session-recording";
 import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
@@ -360,6 +364,7 @@ export function VideoSimulationScreen({
 
   /** After loading, enter live and prompt for camera + mic once. */
   useEffect(() => {
+    if (useBackendLiveKit) return;
     if (phase !== "live") return;
     let cancelled = false;
     void (async () => {
@@ -373,10 +378,14 @@ export function VideoSimulationScreen({
     return () => {
       cancelled = true;
     };
-  }, [phase, media.startCamera]);
+  }, [phase, useBackendLiveKit, media.startCamera]);
 
   /** Restart recording whenever live, not already recording, and capture tracks exist (e.g. after screen share toggles). */
   useEffect(() => {
+    if (useBackendLiveKit) {
+      recordKickRef.current = false;
+      return;
+    }
     if (phase !== "live") {
       recordKickRef.current = false;
       return;
@@ -399,6 +408,7 @@ export function VideoSimulationScreen({
     };
   }, [
     phase,
+    useBackendLiveKit,
     media.cameraStream,
     media.screenStream,
     media.recording,
@@ -513,7 +523,13 @@ export function VideoSimulationScreen({
     setSavingReport(true);
     try {
       if (useBackendLiveKit && phase === "live") {
-        const blob = await media.finalizeRecording();
+        const blob = await finalizeLiveKitRecording(sessionId);
+        console.info("[simulation-report] video finalize", {
+          sessionId,
+          hasBlob: Boolean(blob && blob.size > 0),
+          size: blob?.size ?? 0,
+          type: blob?.type ?? null,
+        });
         await flushTranscriptQueue(true);
         await endBackendSimulationSession(sessionId);
         const payload = buildStoredVideoReport({
@@ -530,12 +546,14 @@ export function VideoSimulationScreen({
         try {
           await saveSessionReport(payload);
         } catch {
+          console.error("[simulation-report] video save with recording failed", { sessionId });
           await saveSessionReport({
             ...payload,
             recording: undefined,
             recordingMime: undefined,
           });
         }
+        await disposeLiveKitRecording(sessionId);
         router.push(`/simulation/${sessionId}/report?kind=video`);
         return;
       }
@@ -572,7 +590,7 @@ export function VideoSimulationScreen({
   async function requestEndCall() {
     if (!window.confirm("End this call? Recording will stop and capture will end.")) return;
     if (useBackendLiveKit) {
-      await media.finalizeRecording();
+      await disposeLiveKitRecording(sessionId);
       await flushTranscriptQueue(true);
       await endBackendSimulationSession(sessionId);
     }

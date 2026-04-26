@@ -64,6 +64,10 @@ export type SessionReportStored = {
   recordingMime?: string;
 };
 
+type SessionReportPersisted = Omit<SessionReportStored, "recording"> & {
+  recordingBytes?: ArrayBuffer;
+};
+
 const DB_NAME = "squinia-simulation-reports";
 const DB_VERSION = 1;
 const STORE = "sessionReports";
@@ -83,26 +87,50 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 export async function saveSessionReport(data: SessionReportStored): Promise<void> {
+  const persisted: SessionReportPersisted = {
+    ...data,
+    recording: undefined,
+  } as SessionReportPersisted;
+
+  if (data.recording && data.recording.size > 0) {
+    persisted.recordingBytes = await data.recording.arrayBuffer();
+    persisted.recordingMime = data.recordingMime ?? data.recording.type ?? persisted.recordingMime;
+  } else {
+    delete persisted.recordingBytes;
+  }
+
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error ?? new Error("IndexedDB write failed"));
-    tx.objectStore(STORE).put(data, data.sessionId);
+    tx.objectStore(STORE).put(persisted, data.sessionId);
   });
   db.close();
 }
 
 export async function loadSessionReport(sessionId: string): Promise<SessionReportStored | null> {
   const db = await openDb();
-  const row = await new Promise<SessionReportStored | undefined>((resolve, reject) => {
+  const row = await new Promise<SessionReportPersisted | SessionReportStored | undefined>((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const rq = tx.objectStore(STORE).get(sessionId);
-    rq.onsuccess = () => resolve(rq.result as SessionReportStored | undefined);
+    rq.onsuccess = () => resolve(rq.result as SessionReportPersisted | SessionReportStored | undefined);
     rq.onerror = () => reject(rq.error ?? new Error("IndexedDB read failed"));
   });
   db.close();
-  return row ?? null;
+  if (!row) return null;
+
+  const maybePersisted = row as SessionReportPersisted;
+  if (maybePersisted.recordingBytes) {
+    return {
+      ...maybePersisted,
+      recording: new Blob([maybePersisted.recordingBytes], {
+        type: maybePersisted.recordingMime || "application/octet-stream",
+      }),
+    };
+  }
+
+  return row as SessionReportStored;
 }
 
 export function initialsFromName(name: string): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import type { TrackReference } from "@livekit/components-core";
 import {
@@ -12,20 +12,21 @@ import {
   useLocalParticipant,
   useRoomContext,
 } from "@livekit/components-react";
-import { Participant, RoomEvent, type TranscriptionSegment } from "livekit-client";
+import { Participant, RoomEvent, Track, type TranscriptionSegment } from "livekit-client";
 
 import { issueLiveKitConnection } from "../_lib/backend-simulation";
+import {
+  registerLiveKitRecordingController,
+  unregisterLiveKitRecordingController,
+} from "../_lib/livekit-session-recording";
 
 type Props = {
   sessionId: string;
-  /** Voice (phone): publish/listen audio only. Video: local camera pip + remote audio + avatar (training layout). */
   mode: "audio" | "video";
   className?: string;
-  /** Video layout: interviewer / opponent shown as initials avatar (remote is audio-only from agent). */
   remoteName?: string;
   remoteRole?: string;
   learnerName?: string;
-  /** Call timer label, e.g. ``00:12`` — matches the non-LiveKit video stage. */
   elapsedLabel?: string;
   onTranscriptFinal?: (entry: {
     role: "USER" | "ASSISTANT";
@@ -38,10 +39,10 @@ type Props = {
 };
 
 function initials(name: string) {
-  const p = name.trim().split(/\s+/).filter(Boolean);
-  if (p.length === 0) return "?";
-  const a = p[0]?.[0] ?? "?";
-  const b = p.length > 1 ? p[p.length - 1]?.[0] : p[0]?.[1];
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const a = parts[0]?.[0] ?? "?";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1];
   return `${a}${b ?? ""}`.toUpperCase();
 }
 
@@ -60,10 +61,304 @@ function LiveKitAudioGate() {
   );
 }
 
-/**
- * Remote participant is expected to be **audio-only** (LiveKit agent). Learner publishes camera + mic.
- * Mirrors the original video simulation: large persona avatar + timer, small self-view pip.
- */
+function pickRecorderMime(mode: Props["mode"]): string | undefined {
+  const candidates =
+    mode === "video"
+      ? ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+      : ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+  for (const mime of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)) {
+      return mime;
+    }
+  }
+  return undefined;
+}
+
+function LiveKitSessionRecorder({ sessionId, mode }: Pick<Props, "sessionId" | "mode">) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+      return;
+    }
+
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    const audioContext = new AudioContextCtor();
+    const destination = audioContext.createMediaStreamDestination();
+    const mime = pickRecorderMime(mode);
+    const chunks: Blob[] = [];
+    const localInputs = new Map<string, MediaStreamAudioSourceNode>();
+    const remoteInputs = new Map<string, MediaStreamAudioSourceNode>();
+    const stopWaiters = new Set<() => void>();
+
+    let recorder: MediaRecorder | null = null;
+    let videoClone: MediaStreamTrack | null = null;
+    let recordedBlob: Blob | null = null;
+    let finalized = false;
+    let disposed = false;
+    let discardBlob = false;
+
+    function resolveStopWaiters() {
+      for (const resolve of stopWaiters) resolve();
+      stopWaiters.clear();
+    }
+
+    async function ensureAudioContextReady() {
+      if (audioContext.state === "suspended") {
+        try {
+          await audioContext.resume();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    function waitForRecorderStop() {
+      return new Promise<void>((resolve) => {
+        if (!recorder) {
+          resolve();
+          return;
+        }
+        stopWaiters.add(resolve);
+      });
+    }
+
+    function disconnectInputs(inputs: Map<string, MediaStreamAudioSourceNode>) {
+      inputs.forEach((node) => {
+        try {
+          node.disconnect();
+        } catch {
+          /* ignore */
+        }
+      });
+      inputs.clear();
+    }
+
+    function syncAudioInputs(
+      nextTracks: Map<string, MediaStreamTrack>,
+      target: Map<string, MediaStreamAudioSourceNode>,
+    ) {
+      for (const [key, node] of target.entries()) {
+        if (nextTracks.has(key)) continue;
+        try {
+          node.disconnect();
+        } catch {
+          /* ignore */
+        }
+        target.delete(key);
+      }
+
+      for (const [key, track] of nextTracks.entries()) {
+        if (target.has(key)) continue;
+        try {
+          const source = audioContext.createMediaStreamSource(new MediaStream([track]));
+          source.connect(destination);
+          target.set(key, source);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    function syncLocalTracks() {
+      const nextAudio = new Map<string, MediaStreamTrack>();
+      const micTrack =
+        room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack ??
+        null;
+      if (micTrack) {
+        nextAudio.set("local-microphone", micTrack);
+      }
+      syncAudioInputs(nextAudio, localInputs);
+    }
+
+    function syncRemoteTracks() {
+      const nextAudio = new Map<string, MediaStreamTrack>();
+      for (const participant of room.remoteParticipants.values()) {
+        for (const publication of participant.trackPublications.values()) {
+          const mediaTrack = publication.track?.mediaStreamTrack;
+          if (!mediaTrack || publication.kind !== Track.Kind.Audio) continue;
+          nextAudio.set(publication.trackSid || `${participant.identity}:${publication.source}`, mediaTrack);
+        }
+      }
+      syncAudioInputs(nextAudio, remoteInputs);
+    }
+
+    function getLocalCameraTrack() {
+      return room.localParticipant.getTrackPublication(Track.Source.Camera)?.track?.mediaStreamTrack ?? null;
+    }
+
+    async function maybeStartRecorder() {
+      if (disposed || recorder) return;
+
+      const output = new MediaStream();
+      if (mode === "video") {
+        const cameraTrack = getLocalCameraTrack();
+        if (!cameraTrack) return;
+        videoClone = cameraTrack.clone();
+        output.addTrack(videoClone);
+      }
+
+      const mixedAudioTrack = destination.stream.getAudioTracks()[0];
+      if (mixedAudioTrack) {
+        output.addTrack(mixedAudioTrack);
+      }
+
+      if (output.getTracks().length === 0) return;
+
+      await ensureAudioContextReady();
+
+      try {
+        recorder =
+          mime !== undefined
+            ? new MediaRecorder(output, { mimeType: mime })
+            : new MediaRecorder(output);
+      } catch {
+        output.getTracks().forEach((track) => track.stop());
+        videoClone = null;
+        return;
+      }
+
+      console.info("[livekit-recording] started", {
+        sessionId,
+        mode,
+        trackCount: output.getTracks().length,
+        mime: mime ?? recorder.mimeType,
+      });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blobType =
+          mime?.split(";")[0] || recorder?.mimeType || (mode === "video" ? "video/webm" : "audio/webm");
+
+        recorder = null;
+        if (videoClone) {
+          videoClone.stop();
+          videoClone = null;
+        }
+        output.getTracks().forEach((track) => {
+          if (track.readyState === "live") {
+            track.stop();
+          }
+        });
+
+        if (discardBlob) {
+          recordedBlob = null;
+          chunks.length = 0;
+        } else {
+          recordedBlob = new Blob(chunks, { type: blobType });
+          chunks.length = 0;
+        }
+
+        console.info("[livekit-recording] stopped", {
+          sessionId,
+          mode,
+          discarded: discardBlob,
+          size: recordedBlob?.size ?? 0,
+          type: recordedBlob?.type ?? blobType,
+        });
+
+        resolveStopWaiters();
+      };
+      recorder.start(250);
+    }
+
+    async function finalizeRecording() {
+      finalized = true;
+      discardBlob = false;
+      await maybeStartRecorder();
+      if (recorder && recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          recorder = null;
+        }
+      }
+      await waitForRecorderStop();
+      console.info("[livekit-recording] finalized", {
+        sessionId,
+        mode,
+        size: recordedBlob?.size ?? 0,
+        hasBlob: Boolean(recordedBlob && recordedBlob.size > 0),
+      });
+      return recordedBlob && recordedBlob.size > 0 ? recordedBlob : null;
+    }
+
+    async function disposeRecording(options?: { discard?: boolean }) {
+      disposed = true;
+      discardBlob = options?.discard ?? false;
+      if (recorder && recorder.state !== "inactive") {
+        try {
+          recorder.stop();
+        } catch {
+          recorder = null;
+        }
+        await waitForRecorderStop();
+      }
+      disconnectInputs(localInputs);
+      disconnectInputs(remoteInputs);
+      if (videoClone) {
+        videoClone.stop();
+        videoClone = null;
+      }
+      if (audioContext.state !== "closed") {
+        try {
+          await audioContext.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    function handleTrackChange() {
+      syncLocalTracks();
+      syncRemoteTracks();
+      if (!finalized) {
+        void maybeStartRecorder();
+      }
+    }
+
+    syncLocalTracks();
+    syncRemoteTracks();
+    void maybeStartRecorder();
+
+    const controller = {
+      finalize: finalizeRecording,
+      dispose: disposeRecording,
+    };
+
+    registerLiveKitRecordingController(sessionId, controller);
+    room.on(RoomEvent.TrackSubscribed, handleTrackChange);
+    room.on(RoomEvent.TrackUnsubscribed, handleTrackChange);
+    room.on(RoomEvent.ParticipantConnected, handleTrackChange);
+    room.on(RoomEvent.ParticipantDisconnected, handleTrackChange);
+    room.on(RoomEvent.LocalTrackPublished, handleTrackChange);
+    room.on(RoomEvent.LocalTrackUnpublished, handleTrackChange);
+
+    return () => {
+      room.off(RoomEvent.TrackSubscribed, handleTrackChange);
+      room.off(RoomEvent.TrackUnsubscribed, handleTrackChange);
+      room.off(RoomEvent.ParticipantConnected, handleTrackChange);
+      room.off(RoomEvent.ParticipantDisconnected, handleTrackChange);
+      room.off(RoomEvent.LocalTrackPublished, handleTrackChange);
+      room.off(RoomEvent.LocalTrackUnpublished, handleTrackChange);
+      unregisterLiveKitRecordingController(sessionId, controller);
+      void disposeRecording({ discard: true });
+    };
+  }, [mode, room, sessionId]);
+
+  return null;
+}
+
 function VideoTrainingLiveKitLayout({
   remoteName,
   remoteRole,
@@ -120,7 +415,7 @@ function VideoTrainingLiveKitLayout({
               <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full min-h-[120px] items-center justify-center px-3 text-center text-[12px] text-white/50">
-                Starting camera…
+                Starting camera...
               </div>
             )}
             <span
@@ -138,10 +433,6 @@ function VideoTrainingLiveKitLayout({
   );
 }
 
-/**
- * Joins the LiveKit room for a **persisted** simulation session (`POST /api/v1/sessions` UUID).
- * Requires `NEXT_PUBLIC_USE_BACKEND_SESSIONS` and LiveKit env on the API.
- */
 export function LiveKitRoomStage({
   sessionId,
   mode,
@@ -198,12 +489,10 @@ export function LiveKitRoomStage({
   if (!url || !token) {
     return (
       <div className={`flex items-center justify-center py-8 text-[13px] text-white/60 ${className ?? ""}`}>
-        Connecting to LiveKit…
+        Connecting to LiveKit...
       </div>
     );
   }
-
-  const publishVideo = mode === "video";
 
   return (
     <div className={`min-h-0 flex-1 ${className ?? ""}`}>
@@ -212,7 +501,7 @@ export function LiveKitRoomStage({
         token={token}
         connect
         audio
-        video={publishVideo}
+        video={mode === "video"}
         onConnected={() => {
           console.info("[livekit] connected", { sessionId, mode, serverUrl: url });
           setError(null);
@@ -227,6 +516,7 @@ export function LiveKitRoomStage({
         }}
       >
         <LiveKitAudioGate />
+        <LiveKitSessionRecorder sessionId={sessionId} mode={mode} />
         <LiveKitTranscriptBridge onTranscriptFinal={onTranscriptFinal} />
         {mode === "video" ? (
           <VideoTrainingLiveKitLayout
@@ -251,23 +541,30 @@ function LiveKitTranscriptBridge({
   onTranscriptFinal?: Props["onTranscriptFinal"];
 }) {
   const room = useRoomContext();
+  const onTranscriptFinalRef = useRef(onTranscriptFinal);
 
   useEffect(() => {
-    if (!onTranscriptFinal) return;
+    onTranscriptFinalRef.current = onTranscriptFinal;
+  }, [onTranscriptFinal]);
+
+  useEffect(() => {
     const handler = (segments: TranscriptionSegment[], participant?: Participant) => {
+      const callback = onTranscriptFinalRef.current;
+      if (!callback) return;
+
       const localIdentity = room.localParticipant?.identity;
       const participantIdentity = participant?.identity;
       const participantName = participant?.name;
       const role: "USER" | "ASSISTANT" =
         participantIdentity && participantIdentity === localIdentity ? "USER" : "ASSISTANT";
 
-      for (const seg of segments) {
-        const text = (seg.text || "").trim();
-        if (!text || !seg.final) continue;
-        onTranscriptFinal({
+      for (const segment of segments) {
+        const text = (segment.text || "").trim();
+        if (!text || !segment.final) continue;
+        callback({
           role,
           text,
-          segmentId: seg.id,
+          segmentId: segment.id,
           participantIdentity,
           participantName,
           receivedAtMs: Date.now(),
@@ -279,7 +576,7 @@ function LiveKitTranscriptBridge({
     return () => {
       room.off(RoomEvent.TranscriptionReceived, handler);
     };
-  }, [room, onTranscriptFinal]);
+  }, [room]);
 
   return null;
 }

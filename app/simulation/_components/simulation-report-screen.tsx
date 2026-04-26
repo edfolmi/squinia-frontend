@@ -596,7 +596,7 @@ export function SimulationReportScreen({
           ) : displayKind === "phone" && recordingUrl ? (
             <div className="px-5 pb-6 sm:px-6">
               <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-                Session recording · your microphone
+                Session recording · learner + agent
               </p>
               <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 shadow-inner">
                 <audio src={recordingUrl} controls className="w-full" preload="metadata" />
@@ -604,7 +604,7 @@ export function SimulationReportScreen({
             </div>
           ) : displayKind === "phone" ? (
             <div className="mx-5 mb-4 rounded-2xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-6 text-center text-[13px] text-[var(--muted)] sm:mx-6">
-              No microphone capture for this session (permission denied or recorder unsupported).
+              No session recording was captured for this call (permission denied, recorder unsupported, or audio never connected).
             </div>
           ) : (
             <div className="mx-5 mb-4 rounded-2xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-6 text-center text-[13px] text-[var(--muted)] sm:mx-6">

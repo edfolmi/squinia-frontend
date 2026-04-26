@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:auth": "node tests/auth/auth-session.test.mjs"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.20",

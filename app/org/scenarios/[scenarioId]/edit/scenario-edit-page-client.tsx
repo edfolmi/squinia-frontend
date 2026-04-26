@@ -29,6 +29,10 @@ type ScenarioInput = {
   agentRole: AgentRole;
   simulationKind: UiSimulationKind;
   estMinutes: number;
+  personaName: string;
+  personaTitle: string;
+  openingMessage: string;
+  successCriteria: string;
   configNotes: string;
   rubric: { id: string; label: string; description: string; weight: number; order: number }[];
   published: boolean;
@@ -65,6 +69,15 @@ function mapScenario(payload: {
     agentRole,
     simulationKind: scenarioConfigToUiKind(config),
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
+    personaName: typeof config.persona_name === "string" ? config.persona_name : "",
+    personaTitle:
+      typeof config.persona_title === "string"
+        ? config.persona_title
+        : typeof config.persona_role === "string"
+          ? config.persona_role
+          : "",
+    openingMessage: typeof config.opening_message === "string" ? config.opening_message : "",
+    successCriteria: typeof config.success_criteria === "string" ? config.success_criteria : "",
     configNotes: typeof config.config_notes === "string" ? config.config_notes : "",
     rubric,
     published: String(s.status ?? "").toUpperCase() === "PUBLISHED",

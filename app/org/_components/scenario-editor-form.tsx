@@ -24,6 +24,10 @@ type ScenarioInput = {
   agentRole: AgentRole;
   simulationKind: UiSimulationKind;
   estMinutes: number;
+  personaName: string;
+  personaTitle: string;
+  openingMessage: string;
+  successCriteria: string;
   configNotes: string;
   rubric: RubricItem[];
   published: boolean;
@@ -64,6 +68,10 @@ function blank(): ScenarioInput {
     agentRole: "TECHNICAL_INTERVIEWER",
     simulationKind: "chat",
     estMinutes: 12,
+    personaName: "",
+    personaTitle: "",
+    openingMessage: "",
+    successCriteria: "",
     configNotes: "",
     rubric: [
       { id: "r1", label: "Objective framing", description: "", weight: 25, order: 0 },
@@ -87,6 +95,10 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
   const [agentRole, setAgentRole] = useState<AgentRole>(base.agentRole);
   const [simulationKind, setSimulationKind] = useState<UiSimulationKind>(base.simulationKind);
   const [estMinutes, setEstMinutes] = useState(String(base.estMinutes));
+  const [personaName, setPersonaName] = useState(base.personaName);
+  const [personaTitle, setPersonaTitle] = useState(base.personaTitle);
+  const [openingMessage, setOpeningMessage] = useState(base.openingMessage);
+  const [successCriteria, setSuccessCriteria] = useState(base.successCriteria);
   const [configNotes, setConfigNotes] = useState(base.configNotes);
   const [published, setPublished] = useState(base.published);
   const [rubric, setRubric] = useState<RubricItem[]>(base.rubric);
@@ -109,6 +121,10 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
           estimated_minutes: Number(estMinutes) || 30,
           config: {
             learner_role: role,
+            persona_name: personaName,
+            persona_title: personaTitle,
+            opening_message: openingMessage,
+            success_criteria: successCriteria,
             config_notes: configNotes,
             rubric_draft: rubric,
             session_mode: uiKindToSessionMode(simulationKind),
@@ -129,6 +145,10 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
           estimated_minutes: Number(estMinutes) || 30,
           config: {
             learner_role: role,
+            persona_name: personaName,
+            persona_title: personaTitle,
+            opening_message: openingMessage,
+            success_criteria: successCriteria,
             config_notes: configNotes,
             rubric_draft: rubric,
             session_mode: uiKindToSessionMode(simulationKind),
@@ -209,6 +229,30 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
             </select>
           </div>
           <div>
+            <label htmlFor="personaName" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Persona name
+            </label>
+            <input
+              id="personaName"
+              value={personaName}
+              onChange={(e) => setPersonaName(e.target.value)}
+              placeholder="e.g. Julia Merrick"
+              className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            />
+          </div>
+          <div>
+            <label htmlFor="personaTitle" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Persona title
+            </label>
+            <input
+              id="personaTitle"
+              value={personaTitle}
+              onChange={(e) => setPersonaTitle(e.target.value)}
+              placeholder="e.g. Technical team lead"
+              className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            />
+          </div>
+          <div>
             <label htmlFor="diff" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Difficulty
             </label>
@@ -268,11 +312,37 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
                     />
                     <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">{fmt.title}</p>
                     <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">{fmt.hint}</p>
-                  </label>
-                );
-              })}
+              </label>
+            );
+          })}
             </div>
           </fieldset>
+          <div className="sm:col-span-2">
+            <label htmlFor="opening" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Agent opening
+            </label>
+            <textarea
+              id="opening"
+              rows={3}
+              value={openingMessage}
+              onChange={(e) => setOpeningMessage(e.target.value)}
+              placeholder="The first in-character thing the agent should say when the learner enters."
+              className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="success" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Success criteria
+            </label>
+            <textarea
+              id="success"
+              rows={3}
+              value={successCriteria}
+              onChange={(e) => setSuccessCriteria(e.target.value)}
+              placeholder="What a strong learner should demonstrate in this scenario."
+              className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            />
+          </div>
           <div className="sm:col-span-2">
             <label htmlFor="cfg" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Room config &amp; constraints

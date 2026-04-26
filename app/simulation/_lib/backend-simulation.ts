@@ -131,6 +131,9 @@ export type BackendEvaluationScore = {
   score: number;
   max_score: number;
   rationale?: string | null;
+  summary?: string | null;
+  example_quote?: string | null;
+  improvement?: string | null;
 };
 
 export type BackendEvaluationDetail = {
@@ -147,6 +150,7 @@ export type BackendSessionDetail = {
   mode: "TEXT" | "VOICE" | "VIDEO";
   started_at?: string | null;
   ended_at?: string | null;
+  scenario_snapshot?: unknown;
   messages: BackendSessionMessage[];
   evaluation?: BackendEvaluationDetail | null;
 };

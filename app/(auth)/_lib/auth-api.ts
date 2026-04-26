@@ -42,6 +42,24 @@ async function parseJsonResponse<T>(res: Response): Promise<ApiResult<T>> {
 }
 
 type PostJsonOptions = { bearer?: boolean };
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+function requestErrorMessage(e: unknown): string {
+  if (e instanceof DOMException && e.name === "AbortError") {
+    return "Request timed out. Check your connection and try again.";
+  }
+  return e instanceof Error ? e.message : "Network error";
+}
 
 async function getJson<T>(path: string, options?: PostJsonOptions): Promise<ApiResult<T>> {
   const base = getApiBase();
@@ -57,14 +75,14 @@ async function getJson<T>(path: string, options?: PostJsonOptions): Promise<ApiR
   }
 
   try {
-    const res = await fetch(`${base}${path}`, {
+    const res = await fetchWithTimeout(`${base}${path}`, {
       method: "GET",
       headers,
       credentials: "include",
     });
     return parseJsonResponse<T>(res);
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Network error" };
+    return { ok: false, message: requestErrorMessage(e) };
   }
 }
 
@@ -82,7 +100,7 @@ async function postJson<T>(path: string, body: unknown, options?: PostJsonOption
   }
 
   try {
-    const res = await fetch(`${base}${path}`, {
+    const res = await fetchWithTimeout(`${base}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -90,7 +108,7 @@ async function postJson<T>(path: string, body: unknown, options?: PostJsonOption
     });
     return parseJsonResponse<T>(res);
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Network error" };
+    return { ok: false, message: requestErrorMessage(e) };
   }
 }
 

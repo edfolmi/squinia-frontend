@@ -1,9 +1,17 @@
 import { getApiBase } from "@/app/(auth)/_lib/auth-config";
-import { getAccessToken } from "@/app/(auth)/_lib/auth-tokens";
+import { loginRedirectPath } from "@/app/(auth)/_lib/auth-redirect.mjs";
+import { clearAuthTokens, getAccessToken } from "@/app/(auth)/_lib/auth-tokens";
 
 import { parseApiJson, type ApiResult } from "./api-envelope";
 
 const API_PREFIX = "/api/v1";
+
+function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  clearAuthTokens();
+  const current = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(loginRedirectPath(current));
+}
 
 function toQuery(query?: Record<string, string | number | boolean | undefined | null>): string {
   if (!query) return "";
@@ -76,6 +84,9 @@ export async function v1Request<T>(method: string, path: string, options?: V1Req
     });
     const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const out = parseApiJson<T>(res, raw);
+    if (!res.ok && res.status === 401 && useAuth) {
+      redirectToLogin();
+    }
     if (!out.ok && res.status === 422 && "message" in out) {
       return { ...out, message: `${out.message} (request URL: ${url})` };
     }

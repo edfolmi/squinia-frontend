@@ -97,6 +97,15 @@ function secondsFromTimestamps(start?: string | null, end?: string | null): numb
   return Math.max(0, Math.round((e - s) / 1000));
 }
 
+function mergeTranscriptText(left: string, right: string): string {
+  const a = left.trim();
+  const b = right.trim();
+  if (!a) return b;
+  if (!b) return a;
+  const sep = /[.!?:;,]$/.test(a) ? " " : ", ";
+  return `${a}${sep}${b}`;
+}
+
 function toTranscript(
   messages: BackendSessionMessage[],
   learnerName: string,
@@ -104,21 +113,44 @@ function toTranscript(
 ): SessionReportStored["transcript"] {
   const usable = messages.filter((m) => m.role === "USER" || m.role === "ASSISTANT");
   const startedAt = usable.length > 0 ? Date.parse(usable[0].created_at) : 0;
-  return usable.map((m) => {
+  const lines: SessionReportStored["transcript"] = [];
+  for (const m of usable) {
     const ts = Date.parse(m.created_at);
     const offsetSec =
       Number.isFinite(ts) && Number.isFinite(startedAt) && ts >= startedAt
         ? Math.round((ts - startedAt) / 1000)
         : 0;
-    return {
+    const role = m.role === "USER" ? ("learner" as const) : ("interviewer" as const);
+    const prev = lines[lines.length - 1];
+    if (prev && prev.role === role) {
+      prev.text = mergeTranscriptText(prev.text, m.content);
+      continue;
+    }
+    lines.push({
       id: m.id,
-      role: m.role === "USER" ? ("learner" as const) : ("interviewer" as const),
-      name: m.role === "USER" ? learnerName : interviewerName,
+      role,
+      name: role === "learner" ? learnerName : interviewerName,
       title: undefined,
       text: m.content,
       offsetSec,
-    };
-  });
+    });
+  }
+  return lines;
+}
+
+function snapshotValue(snapshot: unknown, key: string): string {
+  if (!snapshot || typeof snapshot !== "object") return "";
+  const record = snapshot as Record<string, unknown>;
+  const value = record[key];
+  return typeof value === "string" ? value : "";
+}
+
+function snapshotConfigValue(snapshot: unknown, key: string): string {
+  if (!snapshot || typeof snapshot !== "object") return "";
+  const cfg = (snapshot as Record<string, unknown>).config;
+  if (!cfg || typeof cfg !== "object") return "";
+  const value = (cfg as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
 }
 
 function fromBackendDetail(
@@ -128,10 +160,14 @@ function fromBackendDetail(
 ): SessionReportStored {
   const kind = backendModeToKind(detail.mode, hint);
   const learnerName = "You";
-  const interviewerName = "AI Interviewer";
+  const personaName = snapshotConfigValue(detail.scenario_snapshot, "persona_name");
+  const personaTitle =
+    snapshotConfigValue(detail.scenario_snapshot, "persona_title") ||
+    snapshotConfigValue(detail.scenario_snapshot, "persona_role");
+  const interviewerName = personaName || "AI Interviewer";
   const transcript = toTranscript(detail.messages || [], learnerName, interviewerName);
   const elapsedSec = secondsFromTimestamps(detail.started_at, detail.ended_at);
-  const scorecardLabel = "Simulation scorecard";
+  const scorecardLabel = "Behavioral capstone";
   const backendEval = detail.evaluation;
 
   const competencies: CompetencyBlock[] =
@@ -149,17 +185,14 @@ function fromBackendDetail(
         max: s.max_score || 5,
         label: tone === "success" ? "Strong" : tone === "neutral" ? "Average" : "Developing",
         tone,
-        summary: s.rationale || "Performance summary captured by evaluator.",
-        example: s.rationale || "No specific example provided.",
-        improvement: s.rationale || "No specific improvement provided.",
+        summary: s.summary || s.rationale || "Performance summary captured by evaluator.",
+        example: s.example_quote ? `"${s.example_quote}"` : s.rationale || "No specific example provided.",
+        improvement: s.improvement || "No specific improvement provided.",
       };
     }) || [];
 
   const fallbackEval = buildEvaluation(kind, elapsedSec, transcript.length, scorecardLabel);
-  const overallMax =
-    competencies.length > 0
-      ? competencies.reduce((acc, c) => acc + c.max, 0)
-      : fallbackEval.overallMax;
+  const overallMax = 100;
   const overallScore =
     typeof backendEval?.overall_score === "number"
       ? backendEval.overall_score
@@ -171,11 +204,11 @@ function fromBackendDetail(
     version: 1,
     sessionId,
     kind,
-    scenarioTitle: "Simulation session",
+    scenarioTitle: snapshotValue(detail.scenario_snapshot, "title") || "Simulation session",
     learnerName,
     learnerInitials: "YO",
     interviewerName,
-    interviewerTitle: detail.mode === "VIDEO" ? "Video interviewer" : "Voice interviewer",
+    interviewerTitle: personaTitle || (detail.mode === "VIDEO" ? "Video interviewer" : "Voice interviewer"),
     endedAt: detail.ended_at || new Date().toISOString(),
     metrics: {
       handlingTimeSec: elapsedSec,

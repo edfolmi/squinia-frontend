@@ -199,6 +199,24 @@ function fromBackendDetail(
   };
 }
 
+function mergeLocalWithBackend(
+  local: SessionReportStored | null,
+  backend: SessionReportStored | null,
+): SessionReportStored | null {
+  if (!backend) return local;
+  if (!local) return backend;
+  return {
+    ...backend,
+    scenarioTitle: local.scenarioTitle || backend.scenarioTitle,
+    learnerName: local.learnerName || backend.learnerName,
+    learnerInitials: local.learnerInitials || backend.learnerInitials,
+    interviewerName: local.interviewerName || backend.interviewerName,
+    interviewerTitle: local.interviewerTitle || backend.interviewerTitle,
+    recording: local.recording ?? backend.recording,
+    recordingMime: local.recordingMime ?? backend.recordingMime,
+  };
+}
+
 async function loadBackendReportWithPolling(
   sessionId: string,
   kindHint: SimulationReportKind,
@@ -331,9 +349,11 @@ export function SimulationReportScreen({
     let cancelled = false;
     void (async () => {
       try {
-        let data = await loadSessionReport(sessionId);
-        if (!data && isBackendSessionId(sessionId)) {
-          data = await loadBackendReportWithPolling(sessionId, kind);
+        const local = await loadSessionReport(sessionId);
+        let data = local;
+        if (isBackendSessionId(sessionId)) {
+          const backend = await loadBackendReportWithPolling(sessionId, kind);
+          data = mergeLocalWithBackend(local, backend);
         }
         if (cancelled) return;
         setReport(data);

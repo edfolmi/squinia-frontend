@@ -62,10 +62,32 @@ export type LiveKitConnection = {
   participant_token: string;
 };
 
+const liveKitConnectionCache = new Map<string, LiveKitConnection>();
+const liveKitConnectionInFlight = new Map<string, Promise<LiveKitConnection | null>>();
+
 export async function issueLiveKitConnection(sessionId: string): Promise<LiveKitConnection | null> {
-  const res = await v1.post<LiveKitConnection>(`sessions/${sessionId}/livekit-token`, {});
-  if (!res.ok) return null;
-  return res.data;
+  const cached = liveKitConnectionCache.get(sessionId);
+  if (cached) return cached;
+
+  const inFlight = liveKitConnectionInFlight.get(sessionId);
+  if (inFlight) return inFlight;
+
+  const request = (async () => {
+    const res = await v1.post<LiveKitConnection>(`sessions/${sessionId}/livekit-token`, {});
+    if (!res.ok) return null;
+    if (!res.data?.server_url || !res.data?.participant_token || !res.data?.room_name) {
+      return null;
+    }
+    liveKitConnectionCache.set(sessionId, res.data);
+    return res.data;
+  })();
+
+  liveKitConnectionInFlight.set(sessionId, request);
+  try {
+    return await request;
+  } finally {
+    liveKitConnectionInFlight.delete(sessionId);
+  }
 }
 
 export type LiveTranscriptIngestItem = {

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 
 import type { TrackReference } from "@livekit/components-core";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  StartAudio,
   VideoTrack,
+  useAudioPlayback,
   useLocalParticipant,
   useRoomContext,
 } from "@livekit/components-react";
@@ -41,6 +43,21 @@ function initials(name: string) {
   const a = p[0]?.[0] ?? "?";
   const b = p.length > 1 ? p[p.length - 1]?.[0] : p[0]?.[1];
   return `${a}${b ?? ""}`.toUpperCase();
+}
+
+function LiveKitAudioGate() {
+  const { canPlayAudio } = useAudioPlayback();
+
+  if (canPlayAudio) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-4 z-30 flex justify-center px-4">
+      <StartAudio
+        label="Tap to hear the agent"
+        className="pointer-events-auto rounded-xl border border-white/20 bg-black/70 px-4 py-2 text-[13px] font-medium text-white shadow-lg backdrop-blur-sm"
+      />
+    </div>
+  );
 }
 
 /**
@@ -151,6 +168,15 @@ export function LiveKitRoomStage({
         setError("Could not get LiveKit credentials from the API.");
         return;
       }
+      if (!conn.server_url || !conn.participant_token) {
+        setError("API returned incomplete LiveKit credentials.");
+        return;
+      }
+      console.info("[livekit] credentials received", {
+        room: conn.room_name,
+        hasServerUrl: Boolean(conn.server_url),
+        hasParticipantToken: Boolean(conn.participant_token),
+      });
       setUrl(conn.server_url);
       setToken(conn.participant_token);
     })();
@@ -181,7 +207,26 @@ export function LiveKitRoomStage({
 
   return (
     <div className={`min-h-0 flex-1 ${className ?? ""}`}>
-      <LiveKitRoom serverUrl={url} token={token} connect audio video={publishVideo}>
+      <LiveKitRoom
+        serverUrl={url}
+        token={token}
+        connect
+        audio
+        video={publishVideo}
+        onConnected={() => {
+          console.info("[livekit] connected", { sessionId, mode, serverUrl: url });
+          setError(null);
+        }}
+        onDisconnected={(reason) => {
+          console.warn("[livekit] disconnected", { sessionId, reason });
+        }}
+        onError={(err) => {
+          const message = err instanceof Error ? err.message : "LiveKit connection failed.";
+          console.error("[livekit] error", { sessionId, message, err });
+          setError(message);
+        }}
+      >
+        <LiveKitAudioGate />
         <LiveKitTranscriptBridge onTranscriptFinal={onTranscriptFinal} />
         {mode === "video" ? (
           <VideoTrainingLiveKitLayout
@@ -197,6 +242,8 @@ export function LiveKitRoomStage({
     </div>
   );
 }
+
+export const MemoLiveKitRoomStage = memo(LiveKitRoomStage);
 
 function LiveKitTranscriptBridge({
   onTranscriptFinal,

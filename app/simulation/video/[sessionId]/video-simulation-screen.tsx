@@ -7,9 +7,9 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { LiveKitRoomStage } from "../../_components/livekit-room-stage";
+import { MemoLiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
 import {
   endBackendSimulationSession,
@@ -265,6 +265,7 @@ export function VideoSimulationScreen({
   const [infoOpen, setInfoOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
+  const [backendDeviceError, setBackendDeviceError] = useState<string | null>(null);
   const [micIndex, setMicIndex] = useState(0);
   const [camIndex, setCamIndex] = useState(0);
   const [speakerIndex, setSpeakerIndex] = useState(0);
@@ -278,6 +279,7 @@ export function VideoSimulationScreen({
   const transcriptQueueRef = useRef<LiveTranscriptIngestItem[]>([]);
   const transcriptTimerRef = useRef<number | null>(null);
   const transcriptSendingRef = useRef(false);
+  const callElapsedRef = useRef(0);
 
   const media = useVideoSimulationMedia();
 
@@ -300,23 +302,65 @@ export function VideoSimulationScreen({
   }, [phase]);
 
   useEffect(() => {
-    if (phase !== "loading") return;
-    const t = window.setTimeout(() => {
-      setPhase("live");
-      setCallElapsed(0);
-    }, 2000);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-
-  useEffect(() => {
     if (phase !== "live") return;
     const id = window.setInterval(() => setCallElapsed((s) => s + 1), 1000);
     return () => window.clearInterval(id);
   }, [phase]);
 
+  useEffect(() => {
+    callElapsedRef.current = callElapsed;
+  }, [callElapsed]);
+
+  const requestBackendCameraMicAccess = useCallback(async (): Promise<boolean> => {
+    setBackendDeviceError(null);
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setBackendDeviceError("This browser could not request camera and microphone access.");
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: true,
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (e: unknown) {
+      const err = e as { name?: string };
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setBackendDeviceError("Camera or microphone access was denied. Allow it and try again.");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setBackendDeviceError("No camera or microphone was found on this device.");
+      } else {
+        setBackendDeviceError("Could not start camera and microphone for this LiveKit call.");
+      }
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "loading") return;
+    let cancelled = false;
+    void (async () => {
+      if (useBackendLiveKit) {
+        const ok = await requestBackendCameraMicAccess();
+        if (!ok || cancelled) return;
+      } else {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 2000);
+        });
+        if (cancelled) return;
+      }
+      setPhase("live");
+      setCallElapsed(0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, requestBackendCameraMicAccess, useBackendLiveKit]);
+
   /** After loading, enter live and prompt for camera + mic once. */
   useEffect(() => {
-    if (phase !== "live" || useBackendLiveKit) return;
+    if (phase !== "live") return;
     let cancelled = false;
     void (async () => {
       setCameraBusy(true);
@@ -329,11 +373,10 @@ export function VideoSimulationScreen({
     return () => {
       cancelled = true;
     };
-  }, [phase, useBackendLiveKit, media.startCamera]);
+  }, [phase, media.startCamera]);
 
   /** Restart recording whenever live, not already recording, and capture tracks exist (e.g. after screen share toggles). */
   useEffect(() => {
-    if (useBackendLiveKit) return;
     if (phase !== "live") {
       recordKickRef.current = false;
       return;
@@ -361,7 +404,6 @@ export function VideoSimulationScreen({
     media.recording,
     media.error,
     media.startRecording,
-    useBackendLiveKit,
   ]);
 
   useEffect(() => {
@@ -417,7 +459,7 @@ export function VideoSimulationScreen({
     }
   }
 
-  function queueTranscript(item: LiveTranscriptIngestItem) {
+  const queueTranscript = useCallback((item: LiveTranscriptIngestItem) => {
     if (!useBackendLiveKit) return;
     transcriptQueueRef.current.push(item);
     if (transcriptTimerRef.current !== null) return;
@@ -425,7 +467,29 @@ export function VideoSimulationScreen({
       transcriptTimerRef.current = null;
       void flushTranscriptQueue(false);
     }, 700);
-  }
+  }, [useBackendLiveKit]);
+
+  const handleTranscriptFinal = useCallback(
+    (entry: {
+      role: "USER" | "ASSISTANT";
+      text: string;
+      segmentId?: string;
+      participantIdentity?: string;
+      participantName?: string;
+      receivedAtMs: number;
+    }) => {
+      queueTranscript({
+        role: entry.role,
+        text: entry.text,
+        segment_id: entry.segmentId,
+        participant_identity: entry.participantIdentity,
+        participant_name: entry.participantName,
+        offset_ms: callElapsedRef.current * 1000,
+        is_final: true,
+      });
+    },
+    [queueTranscript],
+  );
 
   function formatCallTime(totalSec: number) {
     const m = Math.floor(totalSec / 60)
@@ -449,8 +513,29 @@ export function VideoSimulationScreen({
     setSavingReport(true);
     try {
       if (useBackendLiveKit && phase === "live") {
+        const blob = await media.finalizeRecording();
         await flushTranscriptQueue(true);
         await endBackendSimulationSession(sessionId);
+        const payload = buildStoredVideoReport({
+          sessionId,
+          scenarioTitle,
+          learnerName,
+          remoteName,
+          remoteRole: remoteRole ?? "Interviewer",
+          callElapsedSec: callElapsed,
+          scorecardLabel,
+          recording: blob,
+          recordingMime: blob?.type,
+        });
+        try {
+          await saveSessionReport(payload);
+        } catch {
+          await saveSessionReport({
+            ...payload,
+            recording: undefined,
+            recordingMime: undefined,
+          });
+        }
         router.push(`/simulation/${sessionId}/report?kind=video`);
         return;
       }
@@ -487,6 +572,7 @@ export function VideoSimulationScreen({
   async function requestEndCall() {
     if (!window.confirm("End this call? Recording will stop and capture will end.")) return;
     if (useBackendLiveKit) {
+      await media.finalizeRecording();
       await flushTranscriptQueue(true);
       await endBackendSimulationSession(sessionId);
     }
@@ -718,6 +804,11 @@ export function VideoSimulationScreen({
                   <p className="mt-6 text-[15px] font-medium tracking-[-0.01em]">
                     Starting simulation
                   </p>
+                  {backendDeviceError ? (
+                    <p className="mt-4 text-center text-[13px] leading-relaxed text-[#8a1c1c]">
+                      {backendDeviceError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -728,25 +819,14 @@ export function VideoSimulationScreen({
               <div className="relative min-h-0 flex-1">
                 {useBackendLiveKit ? (
                   <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[#1e1e1e]">
-                    <LiveKitRoomStage
+                    <MemoLiveKitRoomStage
                       sessionId={sessionId}
                       mode="video"
                       className="flex min-h-0 flex-1 flex-col"
                       remoteName={remoteName}
                       remoteRole={remoteRole}
                       learnerName={learnerName}
-                      elapsedLabel={formatCallTime(callElapsed)}
-                      onTranscriptFinal={(entry) =>
-                        queueTranscript({
-                          role: entry.role,
-                          text: entry.text,
-                          segment_id: entry.segmentId,
-                          participant_identity: entry.participantIdentity,
-                          participant_name: entry.participantName,
-                          offset_ms: callElapsed * 1000,
-                          is_final: true,
-                        })
-                      }
+                      onTranscriptFinal={handleTranscriptFinal}
                     />
                   </div>
                 ) : null}

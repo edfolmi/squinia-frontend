@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { LiveKitRoomStage } from "../../_components/livekit-room-stage";
+import { MemoLiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
 import {
   endBackendSimulationSession,
@@ -245,9 +245,11 @@ export function PhoneSimulationScreen({
   const [volumeLevel, setVolumeLevel] = useState(4);
   const [muted, setMuted] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
+  const [backendDeviceError, setBackendDeviceError] = useState<string | null>(null);
   const transcriptQueueRef = useRef<LiveTranscriptIngestItem[]>([]);
   const transcriptTimerRef = useRef<number | null>(null);
   const transcriptSendingRef = useRef(false);
+  const callElapsedRef = useRef(0);
 
   const audio = usePhoneSimulationAudio();
 
@@ -258,7 +260,6 @@ export function PhoneSimulationScreen({
 
   useEffect(() => {
     if (phase !== "live") return;
-    if (useBackendLiveKit) return;
     let cancelled = false;
     void (async () => {
       await audio.startPipeline();
@@ -268,7 +269,7 @@ export function PhoneSimulationScreen({
       cancelled = true;
       audio.resetPipeline();
     };
-  }, [phase, useBackendLiveKit, audio.startPipeline, audio.resetPipeline]);
+  }, [phase, audio.startPipeline, audio.resetPipeline]);
 
   useEffect(() => {
     const t = audio.micStream?.getAudioTracks()[0];
@@ -310,7 +311,7 @@ export function PhoneSimulationScreen({
     }
   }
 
-  function queueTranscript(item: LiveTranscriptIngestItem) {
+  const queueTranscript = useCallback((item: LiveTranscriptIngestItem) => {
     if (!useBackendLiveKit) return;
     transcriptQueueRef.current.push(item);
     if (transcriptTimerRef.current !== null) return;
@@ -318,22 +319,90 @@ export function PhoneSimulationScreen({
       transcriptTimerRef.current = null;
       void flushTranscriptQueue(false);
     }, 700);
-  }
+  }, [useBackendLiveKit]);
 
-  useEffect(() => {
-    if (phase !== "loading") return;
-    const t = window.setTimeout(() => {
-      setPhase("live");
-      setCallElapsed(0);
-    }, 2000);
-    return () => window.clearTimeout(t);
-  }, [phase]);
+  const handleTranscriptFinal = useCallback(
+    (entry: {
+      role: "USER" | "ASSISTANT";
+      text: string;
+      segmentId?: string;
+      participantIdentity?: string;
+      participantName?: string;
+      receivedAtMs: number;
+    }) => {
+      queueTranscript({
+        role: entry.role,
+        text: entry.text,
+        segment_id: entry.segmentId,
+        participant_identity: entry.participantIdentity,
+        participant_name: entry.participantName,
+        offset_ms: callElapsedRef.current * 1000,
+        is_final: true,
+      });
+    },
+    [queueTranscript],
+  );
 
   useEffect(() => {
     if (phase !== "live") return;
     const id = window.setInterval(() => setCallElapsed((s) => s + 1), 1000);
     return () => window.clearInterval(id);
   }, [phase]);
+
+  useEffect(() => {
+    callElapsedRef.current = callElapsed;
+  }, [callElapsed]);
+
+  const requestBackendMicAccess = useCallback(async (): Promise<boolean> => {
+    setBackendDeviceError(null);
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setBackendDeviceError("This browser could not request microphone access.");
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (e: unknown) {
+      const err = e as { name?: string };
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setBackendDeviceError("Microphone access was denied. Allow it and try again.");
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setBackendDeviceError("No microphone was found on this device.");
+      } else {
+        setBackendDeviceError("Could not start the microphone for this LiveKit call.");
+      }
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "loading") return;
+    let cancelled = false;
+    void (async () => {
+      if (useBackendLiveKit) {
+        const ok = await requestBackendMicAccess();
+        if (!ok || cancelled) return;
+      } else {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 2000);
+        });
+        if (cancelled) return;
+      }
+      setPhase("live");
+      setCallElapsed(0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, requestBackendMicAccess, useBackendLiveKit]);
 
   function formatCallTime(totalSec: number) {
     const m = Math.floor(totalSec / 60)
@@ -351,8 +420,29 @@ export function PhoneSimulationScreen({
     setSavingReport(true);
     try {
       if (useBackendLiveKit && phase === "live") {
+        const blob = await audio.finalizeRecording();
         await flushTranscriptQueue(true);
         await endBackendSimulationSession(sessionId);
+        const payload = buildStoredPhoneReport({
+          sessionId,
+          scenarioTitle,
+          learnerName,
+          callerName,
+          callerSubtitle: callerNumber,
+          callElapsedSec: callElapsed,
+          scorecardLabel,
+          recording: blob ?? undefined,
+          recordingMime: blob?.type,
+        });
+        try {
+          await saveSessionReport(payload);
+        } catch {
+          await saveSessionReport({
+            ...payload,
+            recording: undefined,
+            recordingMime: undefined,
+          });
+        }
         router.push(`/simulation/${sessionId}/report?kind=phone`);
         return;
       }
@@ -389,6 +479,7 @@ export function PhoneSimulationScreen({
     const ok = window.confirm("End this call?");
     if (!ok) return;
     if (useBackendLiveKit) {
+      await audio.finalizeRecording();
       await flushTranscriptQueue(true);
       await endBackendSimulationSession(sessionId);
     }
@@ -616,6 +707,11 @@ export function PhoneSimulationScreen({
                   <p className="mt-6 text-[15px] font-medium tracking-[-0.01em]">
                     Starting simulation
                   </p>
+                  {backendDeviceError ? (
+                    <p className="mt-4 text-center text-[13px] leading-relaxed text-[#8a1c1c]">
+                      {backendDeviceError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -626,20 +722,10 @@ export function PhoneSimulationScreen({
               <div className="flex flex-1 flex-col items-center justify-center px-6 pb-28 pt-8 text-center">
                 {useBackendLiveKit ? (
                   <div className="mb-6 w-full max-w-lg">
-                    <LiveKitRoomStage
+                    <MemoLiveKitRoomStage
                       sessionId={sessionId}
                       mode="audio"
-                      onTranscriptFinal={(entry) =>
-                        queueTranscript({
-                          role: entry.role,
-                          text: entry.text,
-                          segment_id: entry.segmentId,
-                          participant_identity: entry.participantIdentity,
-                          participant_name: entry.participantName,
-                          offset_ms: callElapsed * 1000,
-                          is_final: true,
-                        })
-                      }
+                      onTranscriptFinal={handleTranscriptFinal}
                     />
                   </div>
                 ) : null}

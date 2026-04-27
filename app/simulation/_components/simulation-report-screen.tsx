@@ -15,7 +15,6 @@ import {
   type CompetencyBlock,
   type SessionReportStored,
   type SimulationReportKind,
-  buildEvaluation,
   downloadEvaluationJson,
   formatClock,
   formatMetricDuration,
@@ -153,6 +152,17 @@ function snapshotConfigValue(snapshot: unknown, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
+function pendingEvaluation(scorecardLabel: string): SessionReportStored["evaluation"] {
+  return {
+    overallScore: 0,
+    overallMax: 100,
+    band: "Growing",
+    summary: "Evaluation is being finalized. Refresh shortly to see rubric scores, examples, and improvements.",
+    scorecardLabel,
+    competencies: [],
+  };
+}
+
 function fromBackendDetail(
   detail: BackendSessionDetail,
   sessionId: string,
@@ -169,9 +179,10 @@ function fromBackendDetail(
   const elapsedSec = secondsFromTimestamps(detail.started_at, detail.ended_at);
   const scorecardLabel = "Behavioral capstone";
   const backendEval = detail.evaluation;
+  const backendScores = backendEval?.scores ?? [];
 
   const competencies: CompetencyBlock[] =
-    backendEval?.scores?.map((s, idx) => {
+    backendScores.map((s, idx) => {
       const tone: CompetencyBlock["tone"] =
         s.max_score > 0 && s.score / s.max_score >= 0.8
           ? "success"
@@ -189,14 +200,23 @@ function fromBackendDetail(
         example: s.example_quote ? `"${s.example_quote}"` : s.rationale || "No specific example provided.",
         improvement: s.improvement || "No specific improvement provided.",
       };
-    }) || [];
+    });
 
-  const fallbackEval = buildEvaluation(kind, elapsedSec, transcript.length, scorecardLabel);
   const overallMax = 100;
-  const overallScore =
-    typeof backendEval?.overall_score === "number"
+  const calculatedScore =
+    backendScores.length > 0
+      ? Math.round(
+          (backendScores.reduce((sum, score) => sum + score.score, 0) /
+            Math.max(1, backendScores.reduce((sum, score) => sum + score.max_score, 0))) *
+            overallMax,
+        )
+      : 0;
+  const hasCompletedEvaluation = backendEval?.status === "COMPLETED";
+  const overallScore = hasCompletedEvaluation
+    ? typeof backendEval.overall_score === "number"
       ? backendEval.overall_score
-      : fallbackEval.overallScore;
+      : calculatedScore
+    : 0;
   const band: SessionReportStored["evaluation"]["band"] =
     overallScore >= 82 ? "Great" : overallScore >= 68 ? "Solid" : "Growing";
 
@@ -219,16 +239,16 @@ function fromBackendDetail(
       lastMessageSec: transcript.length > 0 ? transcript[transcript.length - 1].offsetSec : 0,
     },
     transcript,
-    evaluation: {
-      overallScore,
-      overallMax,
-      band,
-      summary:
-        backendEval?.feedback_summary ||
-        "Evaluation is being finalized. Refresh shortly if detailed feedback is still processing.",
-      scorecardLabel,
-      competencies: competencies.length > 0 ? competencies : fallbackEval.competencies,
-    },
+    evaluation: hasCompletedEvaluation
+      ? {
+          overallScore,
+          overallMax,
+          band,
+          summary: backendEval?.feedback_summary || "Evaluation completed.",
+          scorecardLabel,
+          competencies,
+        }
+      : pendingEvaluation(scorecardLabel),
   };
 }
 
@@ -245,6 +265,7 @@ function mergeLocalWithBackend(
     learnerInitials: local.learnerInitials || backend.learnerInitials,
     interviewerName: local.interviewerName || backend.interviewerName,
     interviewerTitle: local.interviewerTitle || backend.interviewerTitle,
+    evaluation: backend.evaluation,
     recording: local.recording ?? backend.recording,
     recordingMime: local.recordingMime ?? backend.recordingMime,
   };
@@ -386,7 +407,11 @@ export function SimulationReportScreen({
         let data = local;
         if (isBackendSessionId(sessionId)) {
           const backend = await loadBackendReportWithPolling(sessionId, kind);
-          data = mergeLocalWithBackend(local, backend);
+          data = backend
+            ? mergeLocalWithBackend(local, backend)
+            : local
+              ? { ...local, evaluation: pendingEvaluation(local.evaluation.scorecardLabel) }
+              : null;
         }
         if (cancelled) return;
         setReport(data);
@@ -708,14 +733,21 @@ export function SimulationReportScreen({
             </div>
 
             <div className="mt-8 space-y-5">
-              {ev.competencies.map((c) => (
-                <CompetencyCard
-                  key={c.id}
-                  block={c}
-                  openKey={accordion}
-                  onToggle={(key) => setAccordion((prev) => (prev === key ? null : key))}
-                />
-              ))}
+              {ev.competencies.length > 0 ? (
+                ev.competencies.map((c) => (
+                  <CompetencyCard
+                    key={c.id}
+                    block={c}
+                    openKey={accordion}
+                    onToggle={(key) => setAccordion((prev) => (prev === key ? null : key))}
+                  />
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[var(--rule)] bg-[var(--field)]/45 px-5 py-6 text-[14px] leading-relaxed text-[var(--muted)]">
+                  The evaluator is still preparing rubric-level feedback for this session. Refresh shortly to see
+                  scored competencies with exact transcript examples.
+                </div>
+              )}
             </div>
 
             <div className="mt-10 flex flex-wrap gap-3 border-t border-[var(--rule)] pt-8">

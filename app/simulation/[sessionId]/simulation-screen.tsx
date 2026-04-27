@@ -441,15 +441,12 @@ export function SimulationScreen({
               return;
             }
             const reply = (res.data.assistant_content || "").trim() || "…";
-            setLines((prev) => [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                role: "ai",
-                text: reply,
-                offsetSec: elapsedRef.current,
-              },
-            ]);
+            setAiStream({
+              lineId: crypto.randomUUID(),
+              full: reply,
+              shown: "",
+              offsetSec: elapsedRef.current,
+            });
           } finally {
             setAiTyping(false);
           }
@@ -493,7 +490,7 @@ export function SimulationScreen({
   }, [lines, live, useBackendChat]);
 
   useEffect(() => {
-    if (!aiStream || useBackendChat) return;
+    if (!aiStream) return;
     if (aiStream.shown.length >= aiStream.full.length) {
       setLines((prev) => [
         ...prev,

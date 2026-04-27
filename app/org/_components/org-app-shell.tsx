@@ -8,6 +8,7 @@ import { StudentProfileMenu } from "@/app/(student)/_components/student-profile-
 const NAV = [
   { href: "/org/cohorts", label: "Cohorts" },
   { href: "/org/scenarios", label: "Scenarios" },
+  { href: "/org/personas", label: "Personas" },
   { href: "/org/assignments", label: "Assignments" },
   { href: "/org/analytics", label: "Analytics" },
 ] as const;
@@ -18,6 +19,8 @@ function navActive(href: string, pathname: string): boolean {
       return pathname === "/org/cohorts" || pathname.startsWith("/org/cohorts/");
     case "/org/scenarios":
       return pathname.startsWith("/org/scenarios");
+    case "/org/personas":
+      return pathname.startsWith("/org/personas");
     case "/org/assignments":
       return pathname.startsWith("/org/assignments");
     case "/org/analytics":

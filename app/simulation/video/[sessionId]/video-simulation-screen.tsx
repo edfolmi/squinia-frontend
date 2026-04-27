@@ -13,6 +13,7 @@ import { MemoLiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
 import {
   endBackendSimulationSession,
+  getBackendSessionDetail,
   ingestLiveTranscript,
   isBackendSessionId,
   type LiveTranscriptIngestItem,
@@ -21,6 +22,7 @@ import {
   disposeLiveKitRecording,
   finalizeLiveKitRecording,
 } from "../../_lib/livekit-session-recording";
+import { PersonaAvatar, personaFromScenarioLike, type RuntimePersona } from "../../_lib/persona-runtime";
 import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
@@ -239,21 +241,13 @@ function VolumeMeter({ level }: { level: number }) {
   );
 }
 
-function initials(name: string) {
-  const p = name.trim().split(/\s+/).filter(Boolean);
-  if (p.length === 0) return "?";
-  const a = p[0]?.[0] ?? "?";
-  const b = p.length > 1 ? p[p.length - 1]?.[0] : p[0]?.[1];
-  return `${a}${b ?? ""}`.toUpperCase();
-}
-
 export function VideoSimulationScreen({
   sessionId,
-  scenarioTitle,
-  remoteName,
-  remoteRole,
+  scenarioTitle: initialScenarioTitle,
+  remoteName: initialRemoteName,
+  remoteRole: initialRemoteRole,
   learnerName,
-  personaBlurb,
+  personaBlurb: initialPersonaBlurb,
   scorecardLabel = "Behavioral capstone",
 }: {
   sessionId: string;
@@ -270,6 +264,13 @@ export function VideoSimulationScreen({
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [backendDeviceError, setBackendDeviceError] = useState<string | null>(null);
+  const [runtimeScenarioTitle, setRuntimeScenarioTitle] = useState(initialScenarioTitle);
+  const [runtimePersona, setRuntimePersona] = useState<RuntimePersona>({
+    name: initialRemoteName,
+    title: initialRemoteRole || "Interviewer",
+    avatarUrl: "",
+    blurb: initialPersonaBlurb || "",
+  });
   const [micIndex, setMicIndex] = useState(0);
   const [camIndex, setCamIndex] = useState(0);
   const [speakerIndex, setSpeakerIndex] = useState(0);
@@ -296,6 +297,23 @@ export function VideoSimulationScreen({
     () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
     [sessionId],
   );
+
+  useEffect(() => {
+    if (!useBackendLiveKit) return;
+    let cancelled = false;
+    void (async () => {
+      const detail = await getBackendSessionDetail(sessionId);
+      if (cancelled || !detail?.scenario_snapshot) return;
+      const snap = detail.scenario_snapshot as Record<string, unknown>;
+      setRuntimePersona(personaFromScenarioLike(snap));
+      if (typeof snap.title === "string" && snap.title.trim()) {
+        setRuntimeScenarioTitle(snap.title.trim());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, useBackendLiveKit]);
 
   useEffect(() => {
     if (phase !== "micTest") return;
@@ -534,10 +552,10 @@ export function VideoSimulationScreen({
         await endBackendSimulationSession(sessionId);
         const payload = buildStoredVideoReport({
           sessionId,
-          scenarioTitle,
+          scenarioTitle: runtimeScenarioTitle,
           learnerName,
-          remoteName,
-          remoteRole: remoteRole ?? "Interviewer",
+          remoteName: runtimePersona.name,
+          remoteRole: runtimePersona.title,
           callElapsedSec: callElapsed,
           scorecardLabel,
           recording: blob,
@@ -562,10 +580,10 @@ export function VideoSimulationScreen({
       media.stopCamera();
       const payload = buildStoredVideoReport({
         sessionId,
-        scenarioTitle,
+        scenarioTitle: runtimeScenarioTitle,
         learnerName,
-        remoteName,
-        remoteRole: remoteRole ?? "Interviewer",
+        remoteName: runtimePersona.name,
+        remoteRole: runtimePersona.title,
         callElapsedSec: phase === "live" ? callElapsed : 0,
         scorecardLabel,
         recording: blob,
@@ -841,8 +859,9 @@ export function VideoSimulationScreen({
                       sessionId={sessionId}
                       mode="video"
                       className="flex min-h-0 flex-1 flex-col"
-                      remoteName={remoteName}
-                      remoteRole={remoteRole}
+                      remoteName={runtimePersona.name}
+                      remoteRole={runtimePersona.title}
+                      remoteAvatarUrl={runtimePersona.avatarUrl}
                       learnerName={learnerName}
                       onTranscriptFinal={handleTranscriptFinal}
                     />
@@ -882,19 +901,18 @@ export function VideoSimulationScreen({
                             className="absolute inset-0 rounded-full border border-violet-300/20"
                             aria-hidden
                           />
-                          <div className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10 sm:h-32 sm:w-32 sm:text-3xl">
-                            {initials(remoteName)}
-                          </div>
+                          <PersonaAvatar
+                            persona={runtimePersona}
+                            className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10 sm:h-32 sm:w-32 sm:text-3xl"
+                          />
                         </div>
                         <p className="mt-10 font-mono text-[2rem] font-medium tabular-nums tracking-tight text-white sm:text-[2.25rem]">
                           {formatCallTime(callElapsed)}
                         </p>
                         <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">
-                          {remoteName}
+                          {runtimePersona.name}
                         </p>
-                        {remoteRole ? (
-                          <p className="mt-2 max-w-md text-[15px] text-white/65">{remoteRole}</p>
-                        ) : null}
+                        <p className="mt-2 max-w-md text-[15px] text-white/65">{runtimePersona.title}</p>
                       </>
                     ) : null}
                   </div>
@@ -1059,7 +1077,7 @@ export function VideoSimulationScreen({
                   Scenario
                 </p>
                 <p className="mt-2.5 text-[1.125rem] font-medium leading-snug tracking-[-0.024em] text-[#111111] lg:text-[1.2rem]">
-                  {scenarioTitle}
+                  {runtimeScenarioTitle}
                 </p>
               </section>
               <section className="mt-10">
@@ -1067,13 +1085,11 @@ export function VideoSimulationScreen({
                   Persona
                 </p>
                 <p className="mt-3 text-[15px] font-medium tracking-[-0.01em] text-[#111111]">
-                  {remoteName}
+                  {runtimePersona.name}
                 </p>
-                {remoteRole ? (
-                  <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">{remoteRole}</p>
-                ) : null}
-                {personaBlurb ? (
-                  <p className="mt-6 text-[14px] leading-[1.65] text-[var(--muted)]">{personaBlurb}</p>
+                <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">{runtimePersona.title}</p>
+                {runtimePersona.blurb ? (
+                  <p className="mt-6 text-[14px] leading-[1.65] text-[var(--muted)]">{runtimePersona.blurb}</p>
                 ) : (
                   <p className="mt-6 text-[14px] leading-[1.65] text-[var(--muted)]">
                     This room uses your real camera, microphone, and optional screen capture. Recording

@@ -7,11 +7,13 @@ import { getAccessToken } from "@/app/(auth)/_lib/auth-tokens";
 
 import {
   endBackendSimulationSession,
+  getBackendSessionDetail,
   isApiBaseConfigured,
   isBackendSessionId,
   postTextSimulationChat,
   postTextSimulationOpening,
 } from "../_lib/backend-simulation";
+import { PersonaAvatar, personaFromScenarioLike, type RuntimePersona } from "../_lib/persona-runtime";
 import { buildStoredChatReport, saveSessionReport } from "../_lib/session-report";
 import { SimulationTeamFeedbackDialog } from "../_components/team-feedback-dialog";
 
@@ -50,13 +52,6 @@ function formatClock(totalSec: number) {
     .padStart(2, "0");
   const s = (totalSec % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
-}
-
-function initialsFrom(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "·";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
 const INITIAL: TranscriptEntry[] = [
@@ -264,9 +259,9 @@ function MetaRow({
 
 export function SimulationScreen({
   sessionId,
-  personaName,
-  personaTitle,
-  scenarioTitle,
+  personaName: initialPersonaName,
+  personaTitle: initialPersonaTitle,
+  scenarioTitle: initialScenarioTitle,
   learnerName,
   meta,
 }: {
@@ -282,6 +277,13 @@ export function SimulationScreen({
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode>("reply");
+  const [runtimeScenarioTitle, setRuntimeScenarioTitle] = useState(initialScenarioTitle);
+  const [runtimePersona, setRuntimePersona] = useState<RuntimePersona>({
+    name: initialPersonaName,
+    title: initialPersonaTitle,
+    avatarUrl: "",
+    blurb: meta.personaBlurb,
+  });
 
   const [lines, setLines] = useState<TranscriptEntry[]>(INITIAL);
   const [draft, setDraft] = useState("");
@@ -312,7 +314,22 @@ export function SimulationScreen({
     composeMode === "reply" &&
     (!getAccessToken() || !isApiBaseConfigured());
   const sessionBusy = aiTyping || aiStream !== null;
-  const initials = useMemo(() => initialsFrom(personaName), [personaName]);
+  useEffect(() => {
+    if (!useBackendChat) return;
+    let cancelled = false;
+    void (async () => {
+      const detail = await getBackendSessionDetail(sessionId);
+      if (cancelled || !detail?.scenario_snapshot) return;
+      const snap = detail.scenario_snapshot as Record<string, unknown>;
+      setRuntimePersona(personaFromScenarioLike(snap));
+      if (typeof snap.title === "string" && snap.title.trim()) {
+        setRuntimeScenarioTitle(snap.title.trim());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, useBackendChat]);
 
   useEffect(() => {
     if (!live) return;
@@ -534,10 +551,10 @@ export function SimulationScreen({
     }
     const payload = buildStoredChatReport({
       sessionId,
-      scenarioTitle,
+      scenarioTitle: runtimeScenarioTitle,
       learnerName,
-      interviewerName: personaName,
-      interviewerTitle: personaTitle,
+      interviewerName: runtimePersona.name,
+      interviewerTitle: runtimePersona.title,
       scorecardLabel: meta.scorecard,
       lines,
       elapsedSec: elapsed,
@@ -554,12 +571,12 @@ export function SimulationScreen({
           Scenario
         </p>
         <p className="mt-2.5 text-[1.125rem] font-medium leading-snug tracking-[-0.024em] text-[#111111] lg:text-[1.2rem]">
-          {scenarioTitle}
+          {runtimeScenarioTitle}
         </p>
       </section>
 
       <section className="rounded-2xl">
-        <MetaRow label="AI persona" value={`${personaName} · ${personaTitle}`} />
+        <MetaRow label="AI persona" value={`${runtimePersona.name} · ${runtimePersona.title}`} />
         <MetaRow label="Language" value={meta.language} />
         <MetaRow label="Channel" value={meta.channel} />
         <MetaRow label="Difficulty" value={meta.difficulty} />
@@ -572,7 +589,7 @@ export function SimulationScreen({
           Persona
         </p>
         <div className="mt-3 max-h-[9.5rem] overflow-y-auto overscroll-y-contain rounded-xl bg-[var(--surface)] px-3 py-3 ring-1 ring-[var(--rule)]/80">
-          <p className="text-[14px] leading-[1.65] text-[var(--muted)]">{meta.personaBlurb}</p>
+          <p className="text-[14px] leading-[1.65] text-[var(--muted)]">{runtimePersona.blurb || meta.personaBlurb}</p>
         </div>
       </section>
 
@@ -625,20 +642,18 @@ export function SimulationScreen({
   const personaRail = (
     <div className="flex h-full flex-col gap-10 px-5 py-8 lg:px-8 lg:py-10">
       <div className="flex items-start gap-4">
-        <div
+        <PersonaAvatar
+          persona={runtimePersona}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#111111] font-mono text-[11px] font-medium tracking-wide text-[var(--accent-fg)]"
-          aria-hidden
-        >
-          {initials}
-        </div>
+        />
         <div className="min-w-0">
           <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--faint)]">
             Interviewer
           </p>
           <p className="mt-2 font-sans text-[1.35rem] font-normal leading-[1.15] tracking-[-0.035em] text-[#111111]">
-            {personaName}
+            {runtimePersona.name}
           </p>
-          <p className="mt-2 text-[15px] leading-[1.6] text-[var(--muted)]">{personaTitle}</p>
+          <p className="mt-2 text-[15px] leading-[1.6] text-[var(--muted)]">{runtimePersona.title}</p>
         </div>
       </div>
 
@@ -762,12 +777,10 @@ export function SimulationScreen({
                       <div className="space-y-4">
                         <div className="flex items-start gap-4">
                           {entry.role === "ai" ? (
-                            <div
+                            <PersonaAvatar
+                              persona={runtimePersona}
                               className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#111111] font-mono text-[10px] font-medium text-[var(--accent-fg)]"
-                              aria-hidden
-                            >
-                              {initials}
-                            </div>
+                            />
                           ) : (
                             <div
                               className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--rule-strong)] font-mono text-[10px] font-medium text-[var(--muted)]"
@@ -783,7 +796,7 @@ export function SimulationScreen({
                               </span>
                               <span className="mx-2 text-[var(--rule-strong)]">·</span>
                               {entry.role === "ai"
-                                ? `${personaName}`
+                                ? `${runtimePersona.name}`
                                 : entry.text.startsWith("Note —")
                                   ? "You · note"
                                   : "You"}
@@ -804,19 +817,17 @@ export function SimulationScreen({
                       {lines.length > 0 ? <TranscriptRule /> : null}
                       <div className="space-y-4">
                         <div className="flex items-start gap-4">
-                          <div
+                          <PersonaAvatar
+                            persona={runtimePersona}
                             className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#111111] font-mono text-[10px] font-medium text-[var(--accent-fg)]"
-                            aria-hidden
-                          >
-                            {initials}
-                          </div>
+                          />
                           <div className="min-w-0 flex-1 space-y-3">
                             <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--faint)]">
                               <span className="tabular-nums text-[var(--muted)]">
                                 {formatClock(aiStream.offsetSec)}
                               </span>
                               <span className="mx-2 text-[var(--rule-strong)]">·</span>
-                              {personaName}
+                              {runtimePersona.name}
                             </p>
                             <p className="whitespace-pre-wrap text-[18px] font-normal leading-[1.72] tracking-[-0.011em] text-[#111111]">
                               {aiStream.shown}

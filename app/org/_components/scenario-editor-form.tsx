@@ -2,12 +2,15 @@
 
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { UiSimulationKind } from "@/app/_lib/simulation-mappers";
 import { uiKindToSessionMode } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
+import type { AgentPersonaApi } from "../_lib/agent-personas";
+import { PersonaAvatar } from "./persona-avatar";
 import { RubricEditor } from "./rubric-editor";
 
 type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
@@ -22,12 +25,14 @@ type ScenarioInput = {
   role: string;
   difficulty: Difficulty;
   agentRole: AgentRole;
+  personaId: string;
   simulationKind: UiSimulationKind;
   estMinutes: number;
   personaName: string;
   personaTitle: string;
   openingMessage: string;
   successCriteria: string;
+  feedbackGuidance: string;
   configNotes: string;
   rubric: RubricItem[];
   published: boolean;
@@ -66,12 +71,14 @@ function blank(): ScenarioInput {
     role: "",
     difficulty: "INTERMEDIATE",
     agentRole: "TECHNICAL_INTERVIEWER",
+    personaId: "",
     simulationKind: "chat",
     estMinutes: 12,
     personaName: "",
     personaTitle: "",
     openingMessage: "",
     successCriteria: "",
+    feedbackGuidance: "",
     configNotes: "",
     rubric: [
       { id: "r1", label: "Objective framing", description: "", weight: 25, order: 0 },
@@ -84,6 +91,7 @@ function blank(): ScenarioInput {
 }
 
 type CreateResult = { scenario: { id: string } };
+type PersonasResult = { items: AgentPersonaApi[] };
 
 export function ScenarioEditorForm({ mode, initial }: Props) {
   const router = useRouter();
@@ -93,18 +101,46 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
   const [role, setRole] = useState(base.role);
   const [difficulty, setDifficulty] = useState<Difficulty>(base.difficulty);
   const [agentRole, setAgentRole] = useState<AgentRole>(base.agentRole);
+  const [personaId, setPersonaId] = useState(base.personaId);
   const [simulationKind, setSimulationKind] = useState<UiSimulationKind>(base.simulationKind);
   const [estMinutes, setEstMinutes] = useState(String(base.estMinutes));
   const [personaName, setPersonaName] = useState(base.personaName);
   const [personaTitle, setPersonaTitle] = useState(base.personaTitle);
   const [openingMessage, setOpeningMessage] = useState(base.openingMessage);
   const [successCriteria, setSuccessCriteria] = useState(base.successCriteria);
+  const [feedbackGuidance, setFeedbackGuidance] = useState(base.feedbackGuidance);
   const [configNotes, setConfigNotes] = useState(base.configNotes);
   const [published, setPublished] = useState(base.published);
   const [rubric, setRubric] = useState<RubricItem[]>(base.rubric);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [personas, setPersonas] = useState<AgentPersonaApi[]>([]);
+  const [personaError, setPersonaError] = useState<string | null>(null);
+
+  const loadPersonas = useCallback(async () => {
+    const res = await v1.get<PersonasResult>("agent-personas");
+    if (!res.ok) {
+      setPersonaError(res.message);
+      setPersonas([]);
+      return;
+    }
+    setPersonaError(null);
+    setPersonas(res.data.items ?? []);
+    if (!base.personaId) {
+      const defaultPersona = (res.data.items ?? []).find((p) => p.is_default);
+      if (defaultPersona) setPersonaId(defaultPersona.id);
+    }
+  }, [base.personaId]);
+
+  useEffect(() => {
+    void loadPersonas();
+  }, [loadPersonas]);
+
+  const selectedPersona = useMemo(
+    () => personas.find((p) => p.id === personaId) ?? null,
+    [personas, personaId],
+  );
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -115,16 +151,18 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
         const res = await v1.post<CreateResult>("scenarios", {
           title,
           description: summary || undefined,
+          persona_id: personaId || undefined,
           agent_role: agentRole,
           difficulty,
           status: published ? "PUBLISHED" : "DRAFT",
           estimated_minutes: Number(estMinutes) || 30,
           config: {
             learner_role: role,
-            persona_name: personaName,
-            persona_title: personaTitle,
+            persona_name: selectedPersona?.name ?? personaName,
+            persona_title: selectedPersona?.title ?? personaTitle,
             opening_message: openingMessage,
             success_criteria: successCriteria,
+            feedback_guidance: feedbackGuidance,
             config_notes: configNotes,
             rubric_draft: rubric,
             session_mode: uiKindToSessionMode(simulationKind),
@@ -139,16 +177,18 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
         const res = await v1.patch<CreateResult>(`scenarios/${base.id}`, {
           title,
           description: summary || undefined,
+          persona_id: personaId || null,
           agent_role: agentRole,
           difficulty,
           status: published ? "PUBLISHED" : "DRAFT",
           estimated_minutes: Number(estMinutes) || 30,
           config: {
             learner_role: role,
-            persona_name: personaName,
-            persona_title: personaTitle,
+            persona_name: selectedPersona?.name ?? personaName,
+            persona_title: selectedPersona?.title ?? personaTitle,
             opening_message: openingMessage,
             success_criteria: successCriteria,
+            feedback_guidance: feedbackGuidance,
             config_notes: configNotes,
             rubric_draft: rubric,
             session_mode: uiKindToSessionMode(simulationKind),
@@ -213,7 +253,7 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
           </div>
           <div>
             <label htmlFor="agentRole" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              AI agent persona
+              Agent role type
             </label>
             <select
               id="agentRole"
@@ -228,31 +268,70 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
               ))}
             </select>
           </div>
-          <div>
-            <label htmlFor="personaName" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              Persona name
-            </label>
-            <input
-              id="personaName"
-              value={personaName}
-              onChange={(e) => setPersonaName(e.target.value)}
-              placeholder="e.g. Julia Merrick"
+          <div className="sm:col-span-2">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label htmlFor="personaId" className="block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                Saved persona
+              </label>
+              <Link href="/org/personas/new" className="text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline">
+                Create persona
+              </Link>
+            </div>
+            <select
+              id="personaId"
+              value={personaId}
+              onChange={(e) => setPersonaId(e.target.value)}
               className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
-            />
+            >
+              <option value="">Custom persona for this scenario</option>
+              {personas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}{p.title ? ` - ${p.title}` : ""}
+                </option>
+              ))}
+            </select>
+            {personaError ? <p className="mt-2 text-[12px] text-amber-700">{personaError}</p> : null}
+            {selectedPersona ? (
+              <div className="mt-3 flex items-center gap-3 rounded-xl border border-[var(--rule)] bg-[var(--field)]/50 px-3 py-3">
+                <PersonaAvatar name={selectedPersona.name} src={selectedPersona.avatar_url} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-[14px] font-medium text-[#111111]">{selectedPersona.name}</p>
+                  <p className="truncate text-[13px] text-[var(--muted)]">
+                    {selectedPersona.title || "Simulation partner"} · {selectedPersona.gender.toLowerCase().replace("_", " ")}
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
-          <div>
-            <label htmlFor="personaTitle" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-              Persona title
-            </label>
-            <input
-              id="personaTitle"
-              value={personaTitle}
-              onChange={(e) => setPersonaTitle(e.target.value)}
-              placeholder="e.g. Technical team lead"
-              className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
-            />
-          </div>
-          <div>
+          {!selectedPersona ? (
+            <>
+              <div>
+                <label htmlFor="personaName" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                  One-off persona name
+                </label>
+                <input
+                  id="personaName"
+                  value={personaName}
+                  onChange={(e) => setPersonaName(e.target.value)}
+                  placeholder="e.g. Julia Merrick"
+                  className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+                />
+              </div>
+              <div>
+                <label htmlFor="personaTitle" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                  One-off persona title
+                </label>
+                <input
+                  id="personaTitle"
+                  value={personaTitle}
+                  onChange={(e) => setPersonaTitle(e.target.value)}
+                  placeholder="e.g. Technical team lead"
+                  className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+                />
+              </div>
+            </>
+          ) : null}
+          <div className={selectedPersona ? "" : ""}>
             <label htmlFor="diff" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Difficulty
             </label>
@@ -340,6 +419,19 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
               value={successCriteria}
               onChange={(e) => setSuccessCriteria(e.target.value)}
               placeholder="What a strong learner should demonstrate in this scenario."
+              className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="feedbackGuidance" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+              Feedback guidance
+            </label>
+            <textarea
+              id="feedbackGuidance"
+              rows={3}
+              value={feedbackGuidance}
+              onChange={(e) => setFeedbackGuidance(e.target.value)}
+              placeholder="What the evaluation should pay special attention to after this scenario."
               className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
             />
           </div>

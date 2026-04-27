@@ -19,6 +19,7 @@ import {
   registerLiveKitRecordingController,
   unregisterLiveKitRecordingController,
 } from "../_lib/livekit-session-recording";
+import { PersonaAvatar } from "../_lib/persona-runtime";
 
 type Props = {
   sessionId: string;
@@ -26,6 +27,7 @@ type Props = {
   className?: string;
   remoteName?: string;
   remoteRole?: string;
+  remoteAvatarUrl?: string;
   learnerName?: string;
   elapsedLabel?: string;
   onTranscriptFinal?: (entry: {
@@ -38,14 +40,6 @@ type Props = {
   }) => void;
 };
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  const a = parts[0]?.[0] ?? "?";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1];
-  return `${a}${b ?? ""}`.toUpperCase();
-}
-
 function LiveKitAudioGate() {
   const { canPlayAudio } = useAudioPlayback();
 
@@ -54,7 +48,7 @@ function LiveKitAudioGate() {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-4 z-30 flex justify-center px-4">
       <StartAudio
-        label="Tap to hear the agent"
+        label="Tap to hear the call"
         className="pointer-events-auto rounded-xl border border-white/20 bg-black/70 px-4 py-2 text-[13px] font-medium text-white shadow-lg backdrop-blur-sm"
       />
     </div>
@@ -362,11 +356,13 @@ function LiveKitSessionRecorder({ sessionId, mode }: Pick<Props, "sessionId" | "
 function VideoTrainingLiveKitLayout({
   remoteName,
   remoteRole,
+  remoteAvatarUrl,
   learnerName,
   elapsedLabel,
 }: {
   remoteName: string;
   remoteRole?: string;
+  remoteAvatarUrl?: string;
   learnerName: string;
   elapsedLabel?: string;
 }) {
@@ -390,9 +386,10 @@ function VideoTrainingLiveKitLayout({
           <div className="absolute inset-0 rounded-full bg-violet-500/15 blur-xl" aria-hidden />
           <div className="absolute inset-2 rounded-full border border-violet-400/25" aria-hidden />
           <div className="absolute inset-0 rounded-full border border-violet-300/20" aria-hidden />
-          <div className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10 sm:h-32 sm:w-32 sm:text-3xl">
-            {initials(remoteName)}
-          </div>
+          <PersonaAvatar
+            persona={{ name: remoteName, avatarUrl: remoteAvatarUrl ?? "" }}
+            className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10 sm:h-32 sm:w-32 sm:text-3xl"
+          />
         </div>
 
         {elapsedLabel ? (
@@ -439,6 +436,7 @@ export function LiveKitRoomStage({
   className,
   remoteName = "Interviewer",
   remoteRole,
+  remoteAvatarUrl,
   learnerName = "You",
   elapsedLabel,
   onTranscriptFinal,
@@ -456,11 +454,11 @@ export function LiveKitRoomStage({
       const conn = await issueLiveKitConnection(sessionId);
       if (cancelled) return;
       if (!conn) {
-        setError("Could not get LiveKit credentials from the API.");
+        setError("We could not start the call. Please try again.");
         return;
       }
       if (!conn.server_url || !conn.participant_token) {
-        setError("API returned incomplete LiveKit credentials.");
+        setError("The call could not be prepared. Please refresh and try again.");
         return;
       }
       console.info("[livekit] credentials received", {
@@ -489,7 +487,7 @@ export function LiveKitRoomStage({
   if (!url || !token) {
     return (
       <div className={`flex items-center justify-center py-8 text-[13px] text-white/60 ${className ?? ""}`}>
-        Connecting to LiveKit...
+        Connecting to call...
       </div>
     );
   }
@@ -510,9 +508,9 @@ export function LiveKitRoomStage({
           console.warn("[livekit] disconnected", { sessionId, reason });
         }}
         onError={(err) => {
-          const message = err instanceof Error ? err.message : "LiveKit connection failed.";
+          const message = err instanceof Error ? err.message : "The call connection failed.";
           console.error("[livekit] error", { sessionId, message, err });
-          setError(message);
+          setError("The call connection was interrupted. Please try joining again.");
         }}
       >
         <LiveKitAudioGate />
@@ -522,6 +520,7 @@ export function LiveKitRoomStage({
           <VideoTrainingLiveKitLayout
             remoteName={remoteName}
             remoteRole={remoteRole}
+            remoteAvatarUrl={remoteAvatarUrl}
             learnerName={learnerName}
             elapsedLabel={elapsedLabel}
           />

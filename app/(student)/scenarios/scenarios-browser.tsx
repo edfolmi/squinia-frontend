@@ -6,6 +6,7 @@ import { agentRoleLabel, scenarioDifficultyLabel, scenarioConfigToUiKind } from 
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { StartSimulationButton } from "../../simulation/_components/start-simulation-button";
+import { PersonaAvatar, personaFromScenarioLike, type RuntimePersona } from "../../simulation/_lib/persona-runtime";
 
 import type { Difficulty, PublishedScenario, SimulationKind } from "../_lib/student-mock-data";
 
@@ -18,9 +19,14 @@ type ScenarioApi = {
   estimated_minutes?: number;
   status?: string;
   config?: Record<string, unknown> | null;
+  persona?: Record<string, unknown> | null;
 };
 
-function toPublished(s: ScenarioApi): PublishedScenario {
+type ScenarioCard = PublishedScenario & {
+  persona: RuntimePersona;
+};
+
+function toPublished(s: ScenarioApi): ScenarioCard {
   const diff = scenarioDifficultyLabel(s.difficulty) as Difficulty;
   return {
     id: s.id,
@@ -30,6 +36,7 @@ function toPublished(s: ScenarioApi): PublishedScenario {
     difficulty: diff,
     kind: scenarioConfigToUiKind(s.config) as SimulationKind,
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
+    persona: personaFromScenarioLike(s),
   };
 }
 
@@ -47,11 +54,12 @@ function kindLabel(kind: PublishedScenario["kind"]) {
 }
 
 export function ScenariosBrowser() {
-  const [scenarios, setScenarios] = useState<PublishedScenario[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioCard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState("All roles");
   const [difficulty, setDifficulty] = useState<"All levels" | Difficulty>("All levels");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,32 +150,63 @@ export function ScenariosBrowser() {
       </div>
 
       <ul className="grid gap-4 sm:grid-cols-2">
-        {filtered.map((s) => (
-          <li
-            key={s.id}
-            className="flex flex-col rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)]"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                {kindLabel(s.kind)}
-              </span>
-              <span className="rounded-full bg-[#e6f4ea]/90 px-2.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-[#166534]">
-                {s.difficulty}
-              </span>
-            </div>
-            <h2 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-[#111111]">{s.title}</h2>
-            <p className="mt-2 flex-1 text-[14px] leading-relaxed text-[var(--muted)]">{s.summary}</p>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">{s.role}</p>
-            <p className="mt-1 text-[12px] text-[var(--muted)]">~{s.estMinutes} min</p>
-            <StartSimulationButton
-              scenarioId={s.id}
-              kind={s.kind}
-              className="sim-btn-accent mt-6 w-full py-3 text-center font-mono text-[10px] uppercase"
+        {filtered.map((s) => {
+          const isExpanded = Boolean(expanded[s.id]);
+          const summaryLong = s.summary.length > 190;
+          return (
+            <li
+              key={s.id}
+              className="flex flex-col rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)]"
             >
-              Start new attempt
-            </StartSimulationButton>
-          </li>
-        ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                  {kindLabel(s.kind)}
+                </span>
+                <span className="rounded-full bg-[#e6f4ea]/90 px-2.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-[#166534]">
+                  {s.difficulty}
+                </span>
+              </div>
+              <h2 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-[#111111]">{s.title}</h2>
+              <div className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--rule)] bg-[var(--field)]/55 px-3 py-3">
+                <PersonaAvatar
+                  persona={s.persona}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--surface)] text-[13px] font-semibold text-[#111111]"
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-medium text-[#111111]">{s.persona.name}</p>
+                  <p className="truncate text-[13px] text-[var(--muted)]">{s.persona.title}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex-1">
+                <p
+                  className={`text-[14px] leading-relaxed text-[var(--muted)] ${
+                    !isExpanded && summaryLong ? "max-h-[4.75rem] overflow-hidden" : ""
+                  }`}
+                >
+                  {s.summary}
+                </p>
+                {summaryLong ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((current) => ({ ...current, [s.id]: !isExpanded }))}
+                    className="mt-2 text-[12px] font-medium text-[#166534] underline-offset-4 hover:underline"
+                  >
+                    {isExpanded ? "Show less" : "Read full summary"}
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">{s.role}</p>
+              <p className="mt-1 text-[12px] text-[var(--muted)]">~{s.estMinutes} min</p>
+              <StartSimulationButton
+                scenarioId={s.id}
+                kind={s.kind}
+                className="sim-btn-accent mt-6 w-full py-3 text-center font-mono text-[10px] uppercase"
+              >
+                Start new attempt
+              </StartSimulationButton>
+            </li>
+          );
+        })}
       </ul>
 
       {!loading && filtered.length === 0 ? (

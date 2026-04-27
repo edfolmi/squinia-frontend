@@ -7,6 +7,7 @@ import { MemoLiveKitRoomStage } from "../../_components/livekit-room-stage";
 import { SimulationTeamFeedbackDialog } from "../../_components/team-feedback-dialog";
 import {
   endBackendSimulationSession,
+  getBackendSessionDetail,
   ingestLiveTranscript,
   isBackendSessionId,
   type LiveTranscriptIngestItem,
@@ -15,6 +16,7 @@ import {
   disposeLiveKitRecording,
   finalizeLiveKitRecording,
 } from "../../_lib/livekit-session-recording";
+import { PersonaAvatar, personaFromScenarioLike, type RuntimePersona } from "../../_lib/persona-runtime";
 import { buildStoredPhoneReport, saveSessionReport } from "../../_lib/session-report";
 import { usePhoneSimulationAudio } from "./hooks/use-phone-simulation-audio";
 
@@ -226,8 +228,8 @@ function VolumeMeter({ level }: { level: number }) {
 
 export function PhoneSimulationScreen({
   sessionId,
-  scenarioTitle = "Voice check-in with leadership",
-  callerName,
+  scenarioTitle: initialScenarioTitle = "Voice check-in with leadership",
+  callerName: initialCallerName,
   callerNumber,
   learnerName,
   scorecardLabel = "Behavioral capstone",
@@ -250,6 +252,13 @@ export function PhoneSimulationScreen({
   const [muted, setMuted] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [backendDeviceError, setBackendDeviceError] = useState<string | null>(null);
+  const [runtimeScenarioTitle, setRuntimeScenarioTitle] = useState(initialScenarioTitle);
+  const [runtimePersona, setRuntimePersona] = useState<RuntimePersona>({
+    name: initialCallerName,
+    title: "Simulation partner",
+    avatarUrl: "",
+    blurb: "",
+  });
   const transcriptQueueRef = useRef<LiveTranscriptIngestItem[]>([]);
   const transcriptTimerRef = useRef<number | null>(null);
   const transcriptSendingRef = useRef(false);
@@ -261,6 +270,24 @@ export function PhoneSimulationScreen({
     () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
     [sessionId],
   );
+
+  useEffect(() => {
+    if (!useBackendLiveKit) return;
+    let cancelled = false;
+    void (async () => {
+      const detail = await getBackendSessionDetail(sessionId);
+      if (cancelled || !detail?.scenario_snapshot) return;
+      const snap = detail.scenario_snapshot as Record<string, unknown>;
+      const persona = personaFromScenarioLike(snap);
+      setRuntimePersona(persona);
+      if (typeof snap.title === "string" && snap.title.trim()) {
+        setRuntimeScenarioTitle(snap.title.trim());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, useBackendLiveKit]);
 
   useEffect(() => {
     if (useBackendLiveKit) return;
@@ -437,9 +464,9 @@ export function PhoneSimulationScreen({
         await endBackendSimulationSession(sessionId);
         const payload = buildStoredPhoneReport({
           sessionId,
-          scenarioTitle,
+          scenarioTitle: runtimeScenarioTitle,
           learnerName,
-          callerName,
+          callerName: runtimePersona.name,
           callerSubtitle: callerNumber,
           callElapsedSec: callElapsed,
           scorecardLabel,
@@ -465,9 +492,9 @@ export function PhoneSimulationScreen({
       audio.resetPipeline();
       const payload = buildStoredPhoneReport({
         sessionId,
-        scenarioTitle,
+        scenarioTitle: runtimeScenarioTitle,
         learnerName,
-        callerName,
+        callerName: runtimePersona.name,
         callerSubtitle: callerNumber,
         callElapsedSec: phase === "live" ? callElapsed : 0,
         scorecardLabel,
@@ -608,6 +635,16 @@ export function PhoneSimulationScreen({
                   >
                     Get ready for your phone simulation
                   </h1>
+                  <div className="mt-5 flex items-center gap-3 rounded-xl border border-[var(--rule)] bg-[var(--field)]/70 px-3 py-3">
+                    <PersonaAvatar
+                      persona={runtimePersona}
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--surface)] text-[13px] font-semibold text-[#111111]"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-[14px] font-medium text-[#111111]">{runtimePersona.name}</p>
+                      <p className="truncate text-[13px] text-[var(--muted)]">{runtimePersona.title}</p>
+                    </div>
+                  </div>
                   <div className="mt-6 flex items-start gap-3 rounded-xl bg-[var(--field)]/80 px-3 py-3 text-[14px] leading-snug text-[var(--muted)]">
                     <IconFocus />
                     <span>Find a space to focus</span>
@@ -747,8 +784,14 @@ export function PhoneSimulationScreen({
                   {formatCallTime(callElapsed)}
                 </p>
                 <p className="mt-6 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">
-                  {callerName}
+                  {runtimePersona.name}
                 </p>
+                <div className="mt-5 flex justify-center">
+                  <PersonaAvatar
+                    persona={runtimePersona}
+                    className="flex h-24 w-24 items-center justify-center rounded-full border border-white/15 bg-white/10 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10"
+                  />
+                </div>
                 <p className="mt-2 text-[15px] text-white/70">{callerNumber}</p>
                 {muted ? (
                   <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-white/45">
@@ -851,7 +894,7 @@ export function PhoneSimulationScreen({
                   Scenario
                 </p>
                 <p className="mt-2.5 text-[1.125rem] font-medium leading-snug tracking-[-0.024em] text-[#111111] lg:text-[1.2rem]">
-                  {scenarioTitle}
+                  {runtimeScenarioTitle}
                 </p>
               </section>
               <section className="mt-10">
@@ -859,8 +902,9 @@ export function PhoneSimulationScreen({
                   Call
                 </p>
                 <p className="mt-3 text-[15px] font-medium tracking-[-0.01em] text-[#111111]">
-                  {callerName}
+                  {runtimePersona.name}
                 </p>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">{runtimePersona.title}</p>
                 <p className="mt-1 font-mono text-[13px] text-[var(--muted)]">{callerNumber}</p>
                 <p className="mt-6 text-[14px] leading-relaxed text-[var(--muted)]">
                   You are signed in as{" "}

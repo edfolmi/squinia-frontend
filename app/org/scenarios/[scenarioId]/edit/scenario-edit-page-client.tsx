@@ -27,12 +27,14 @@ type ScenarioInput = {
   role: string;
   difficulty: Difficulty;
   agentRole: AgentRole;
+  personaId: string;
   simulationKind: UiSimulationKind;
   estMinutes: number;
   personaName: string;
   personaTitle: string;
   openingMessage: string;
   successCriteria: string;
+  feedbackGuidance: string;
   configNotes: string;
   rubric: { id: string; label: string; description: string; weight: number; order: number }[];
   published: boolean;
@@ -67,6 +69,7 @@ function mapScenario(payload: {
     role: typeof config.learner_role === "string" ? config.learner_role : "",
     difficulty: diff,
     agentRole,
+    personaId: typeof s.persona_id === "string" ? s.persona_id : "",
     simulationKind: scenarioConfigToUiKind(config),
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
     personaName: typeof config.persona_name === "string" ? config.persona_name : "",
@@ -78,6 +81,7 @@ function mapScenario(payload: {
           : "",
     openingMessage: typeof config.opening_message === "string" ? config.opening_message : "",
     successCriteria: typeof config.success_criteria === "string" ? config.success_criteria : "",
+    feedbackGuidance: typeof config.feedback_guidance === "string" ? config.feedback_guidance : "",
     configNotes: typeof config.config_notes === "string" ? config.config_notes : "",
     rubric,
     published: String(s.status ?? "").toUpperCase() === "PUBLISHED",

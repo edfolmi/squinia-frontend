@@ -15,13 +15,15 @@
   --accent-active: #258747;
   --accent-fg: #ffffff;
   --focus-ring: rgba(50, 168, 82, 0.45);
+  --squinia-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --squinia-font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--squinia-font-sans);
+  --font-mono: var(--squinia-font-mono);
 }
 
 body {
@@ -197,4 +199,3 @@ body {
   height: 0.625rem;
   color: var(--field);
 }
-

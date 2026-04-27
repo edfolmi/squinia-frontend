@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+
 const NAV = [{ href: "/instructor/assignments", label: "Assignments" }] as const;
 
 function NavLink({ href, label }: { href: string; label: string }) {
@@ -11,9 +13,9 @@ function NavLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className={`rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+      className={`rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
         active
-          ? "bg-[var(--field)] text-[#111111] ring-1 ring-[var(--rule-strong)]"
+          ? "bg-[#0b2014] text-white shadow-[0_8px_20px_-16px_rgba(11,32,20,0.55)]"
           : "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
       }`}
     >
@@ -25,26 +27,26 @@ function NavLink({ href, label }: { href: string; label: string }) {
 export function InstructorAppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[#111111] md:flex-row">
-      <aside className="shrink-0 border-b border-[var(--rule)] bg-[var(--surface)] md:w-56 md:border-b-0 md:border-r">
-        <div className="flex flex-col gap-2 px-4 py-4 md:px-3 md:py-6">
-          <Link href="/instructor/assignments" className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">
-            Squinia
-          </Link>
-          <p className="text-[11px] text-[var(--muted)]">Instructor</p>
+      <aside className="shrink-0 border-b border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f6f8f2_100%)] md:w-64 md:border-b-0 md:border-r">
+        <div className="flex flex-col gap-2 px-4 py-4 md:py-6">
+          <SquiniaBrandLockup href="/instructor/assignments" context="Instructor" />
+          <p className="max-w-[12rem] text-[12px] leading-relaxed text-[var(--muted)]">
+            Grade faster, coach sharper, and keep practice evidence in one place.
+          </p>
           <Link
             href="/org/cohorts"
-            className="text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline"
+            className="text-[12px] font-semibold text-[#0f6f34] underline-offset-4 hover:text-[#111111] hover:underline"
           >
             Org dashboard
           </Link>
           <Link
             href="/dashboard"
-            className="text-[12px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline"
+            className="text-[12px] font-semibold text-[#0f6f34] underline-offset-4 hover:text-[#111111] hover:underline"
           >
             Student view
           </Link>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-2 md:pb-0" aria-label="Instructor">
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-3 md:pb-0" aria-label="Instructor">
           {NAV.map((item) => (
             <NavLink key={item.href} href={item.href} label={item.label} />
           ))}
@@ -52,8 +54,8 @@ export function InstructorAppShell({ children }: { children: React.ReactNode }) 
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/90 px-4 backdrop-blur-sm sm:px-6">
-          <p className="truncate text-[14px] font-medium tracking-[-0.02em] text-[#111111]">Teaching workspace</p>
+        <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/92 px-4 backdrop-blur-sm sm:px-6">
+          <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#111111]">Teaching workspace</p>
           <span className="hidden sm:inline" />
         </header>
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</main>

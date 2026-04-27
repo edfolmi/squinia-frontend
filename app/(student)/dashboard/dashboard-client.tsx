@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 import { sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
+import logoMark from "@/app/squinia-logo.png";
 
 type MeData = {
   user: { id: string; full_name?: string; email?: string };
@@ -89,7 +91,10 @@ export function DashboardClient() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   const latestScore = summary?.avg_score != null ? Math.round(summary.avg_score) : null;
@@ -119,19 +124,66 @@ export function DashboardClient() {
         </p>
       ) : null}
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Welcome back</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          {me?.user?.full_name ? (
-            <>
-              Hi <span className="font-medium text-[#111111]">{me.user.full_name}</span> — pick up assigned work,
-              review sessions, and browse scenarios.
-            </>
-          ) : (
-            <>Pick up assigned simulations, review recent scores, and keep practicing.</>
-          )}
-        </p>
-      </div>
+      <section className="overflow-hidden rounded-lg border border-[var(--rule)] bg-[linear-gradient(135deg,#ffffff_0%,#f5f8f2_54%,#e9f4e8_100%)] shadow-[0_22px_70px_-48px_rgba(11,32,20,0.42)]">
+        <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:p-9">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#b8dec2] bg-white/72 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0f6f34]">
+              Live training workspace
+            </div>
+            <h1 className="mt-5 max-w-2xl text-3xl font-semibold text-[#0b2014] sm:text-4xl">
+              Turn pressure into reps before the real conversation.
+            </h1>
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[var(--muted)]">
+              {me?.user?.full_name ? (
+                <>
+                  Welcome back, <span className="font-semibold text-[#111111]">{me.user.full_name}</span>. Pick up
+                  assigned simulations, review your latest evidence, and keep sharpening the moments that matter.
+                </>
+              ) : (
+                <>Pick up assigned simulations, review recent scores, and keep building confident execution.</>
+              )}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/assignments" className="sim-btn-accent px-5 py-2.5 font-mono text-[10px] uppercase">
+                Open assignments
+              </Link>
+              <Link
+                href="/scenarios"
+                className="rounded-lg border border-[var(--rule-strong)] bg-white/78 px-5 py-2.5 text-[13px] font-semibold text-[#111111] transition-colors hover:bg-white"
+              >
+                Browse scenarios
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/80 bg-white/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <Image src={logoMark} alt="" className="h-16 w-auto" priority />
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-2xl font-semibold text-[#0b2014]">
+                  {loading ? "--" : assignments.length}
+                </p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--faint)]">Assigned</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-[#0b2014]">
+                  {loading ? "--" : sessions.length}
+                </p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--faint)]">Sessions</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-[#0b2014]">
+                  {latestScore == null ? "--" : latestScore}
+                </p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--faint)]">Avg</p>
+              </div>
+            </div>
+            <p className="mt-6 text-[12px] leading-6 text-[var(--muted)]">
+              Every session becomes a feedback loop: transcript, score, coaching note, and next rep.
+            </p>
+          </div>
+        </div>
+      </section>
+
 
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)] sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">

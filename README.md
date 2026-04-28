@@ -97,6 +97,13 @@ For a strong peer-review demo:
 - System states should use customer-friendly language, for example "Connecting to call" instead of implementation details.
 - Feedback should be specific, evidence-based, and tied to the learner's actual words.
 
+## Observability
+
+- Frontend surfaces customer-safe loading and error states; backend logs keep the operational detail.
+- Chat and evaluation model workflows are traced through the backend OpenAI tracing setup.
+- LiveKit call quality, room, participant, and media telemetry are reviewed in LiveKit Cloud.
+- Vercel remains the frontend deployment and runtime visibility layer.
+
 ## Known Gaps To Keep Improving
 
 - Expand frontend component and integration tests for persona/scenario flows.

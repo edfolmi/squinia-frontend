@@ -2,6 +2,12 @@
 
 Squinia is an AI simulation platform for organisations, bootcamps, and training teams to help learners practise interview skills, workplace communication, escalation handling, and professional soft skills in realistic role-play scenarios.
 
+## Demo Walkthrough
+
+[![Squinia platform walkthrough](docs/squinia-demo-thumbnail.png)](https://www.loom.com/share/70acd7b5b64044af948d4f1b6cf4be90)
+
+Watch the demo walkthrough showing the platform flow and a live simulation practice session.
+
 This repository contains the customer-facing Next.js application.
 
 - Live platform: https://squinia-frontend.vercel.app/

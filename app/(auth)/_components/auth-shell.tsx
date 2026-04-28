@@ -10,19 +10,19 @@ type Props = {
 export function AuthShell({ title, subtitle, children, footer }: Props) {
   return (
     <div className="grid min-h-[100dvh] bg-[var(--background)] text-[#111111] lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
-      <section className="hidden border-r border-[var(--rule)] bg-[linear-gradient(135deg,#ffffff_0%,#f4f7f0_58%,#e8f2e8_100%)] px-10 py-10 lg:flex lg:flex-col lg:justify-between">
+      <section className="hidden border-r border-[var(--rule)] bg-[linear-gradient(135deg,#ffffff_0%,#f3f8f2_52%,#e7f3e7_100%)] px-10 py-10 lg:flex lg:flex-col lg:justify-between">
         <SquiniaBrandLockup href="/" />
         <div className="max-w-xl pb-8">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#0f6f34]">Simulation intelligence</p>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#0f6f34]">Performance simulation</p>
           <h2 className="mt-4 max-w-lg text-4xl font-semibold text-[#0b2014]">
-            Practice the conversation before it becomes the moment.
+            Train the moment before the moment arrives.
           </h2>
           <p className="mt-5 max-w-md text-[15px] leading-7 text-[var(--muted)]">
-            Squinia turns real workplace pressure into measurable reps, feedback, and confidence.
+            Squinia gives teams realistic conversation reps, transcript-grounded evaluation, and a clear path from practice to professional execution.
           </p>
         </div>
         <p className="max-w-sm text-[12px] leading-6 text-[var(--faint)]">
-          Built for teams that expect learning tools to feel as sharp as the product stack they already use.
+          Built for bootcamps and organisations that need practice to feel real, measurable, and ready for customers.
         </p>
       </section>
 

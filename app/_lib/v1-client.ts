@@ -13,6 +13,17 @@ function redirectToLogin(): void {
   window.location.assign(loginRedirectPath(current));
 }
 
+function serviceUnavailableMessage(): string {
+  return "We could not reach Squinia services. Please refresh the page or try again in a moment.";
+}
+
+function requestFailedMessage(e: unknown): string {
+  if (e instanceof DOMException && e.name === "AbortError") {
+    return "Request timed out. Check your connection and try again.";
+  }
+  return "We could not complete that request. Please try again.";
+}
+
 function toQuery(query?: Record<string, string | number | boolean | undefined | null>): string {
   if (!query) return "";
   const p = new URLSearchParams();
@@ -27,48 +38,47 @@ function toQuery(query?: Record<string, string | number | boolean | undefined | 
 export type V1RequestOptions = {
   query?: Record<string, string | number | boolean | undefined | null>;
   body?: unknown;
-  /** When false, do not send Bearer (rare; most v1 routes require auth). */
+  /** When false, do not send Bearer. Most v1 routes require auth. */
   auth?: boolean;
 };
 
 export async function v1Request<T>(method: string, path: string, options?: V1RequestOptions): Promise<ApiResult<T>> {
   const base = getApiBase();
   if (!base) {
-    return { ok: false, message: "Set NEXT_PUBLIC_API_BASE to your API origin (e.g. http://localhost:8000)." };
+    return { ok: false, message: serviceUnavailableMessage() };
   }
 
   const useAuth = options?.auth !== false;
   const token = useAuth ? getAccessToken() : null;
   if (useAuth && !token) {
-    return { ok: false, message: "Sign in required — no access token in storage." };
+    redirectToLogin();
+    return { ok: false, message: "Your session has ended. Please sign in again." };
   }
 
-  // Resolve absolute URL so a bad base never becomes a same-origin relative ``/api/v1/...`` hit on Next.js.
   let url: string;
   try {
     const origin = base.replace(/\/+$/, "");
     const pathPart = path.startsWith("/") ? path : `/${path}`;
     url = new URL(`${pathPart.replace(/^\//, "")}${toQuery(options?.query)}`, `${origin}/`).href;
   } catch {
-    return { ok: false, message: `Invalid API base URL: ${base}` };
+    return { ok: false, message: serviceUnavailableMessage() };
   }
+
   while (url.includes("/api/v1/api/v1")) {
     url = url.replace("/api/v1/api/v1", "/api/v1");
   }
+
   if (typeof window !== "undefined") {
     try {
       const u = new URL(url);
       if (u.origin === window.location.origin) {
-        return {
-          ok: false,
-          message:
-            "NEXT_PUBLIC_API_BASE points at this Next.js origin, so /api/v1 calls never reach FastAPI. Set it to the API host (e.g. http://localhost:8000).",
-        };
+        return { ok: false, message: serviceUnavailableMessage() };
       }
     } catch {
-      /* ignore */
+      /* keep the customer-facing message below */
     }
   }
+
   const headers: HeadersInit = {};
   if (token) (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   if (options?.body !== undefined) {
@@ -87,12 +97,9 @@ export async function v1Request<T>(method: string, path: string, options?: V1Req
     if (!res.ok && res.status === 401 && useAuth) {
       redirectToLogin();
     }
-    if (!out.ok && res.status === 422 && "message" in out) {
-      return { ...out, message: `${out.message} (request URL: ${url})` };
-    }
     return out;
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Network error" };
+    return { ok: false, message: requestFailedMessage(e) };
   }
 }
 
@@ -110,5 +117,4 @@ export const v1 = {
   delete: <T>(path: string) => v1Request<T>("DELETE", path.startsWith("/api/") ? path : v1Path(path)),
 };
 
-/** Paginated list bodies use ``data: { items: T[] }`` with totals on ``meta.pagination`` (optional). */
 export type ItemsData<T> = { items: T[] };

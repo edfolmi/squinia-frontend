@@ -8,7 +8,7 @@ export type ApiResult<T> = ApiOk<T> | ApiError;
 function notConfigured(): ApiError {
   return {
     ok: false,
-    message: "Set NEXT_PUBLIC_API_BASE to your backend origin (e.g. http://localhost:8000).",
+    message: "We could not reach Squinia services. Please refresh the page or try again in a moment.",
   };
 }
 
@@ -58,7 +58,7 @@ function requestErrorMessage(e: unknown): string {
   if (e instanceof DOMException && e.name === "AbortError") {
     return "Request timed out. Check your connection and try again.";
   }
-  return e instanceof Error ? e.message : "Network error";
+  return "We could not complete that request. Please try again.";
 }
 
 async function getJson<T>(path: string, options?: PostJsonOptions): Promise<ApiResult<T>> {
@@ -69,7 +69,7 @@ async function getJson<T>(path: string, options?: PostJsonOptions): Promise<ApiR
   if (options?.bearer !== false) {
     const access = getAccessToken();
     if (!access) {
-      return { ok: false, message: "You need to be signed in first (missing access token)." };
+      return { ok: false, message: "Your session has ended. Please sign in again." };
     }
     headers.Authorization = `Bearer ${access}`;
   }
@@ -94,7 +94,7 @@ async function postJson<T>(path: string, body: unknown, options?: PostJsonOption
   if (options?.bearer) {
     const access = getAccessToken();
     if (!access) {
-      return { ok: false, message: "You need to be signed in first (missing access token)." };
+      return { ok: false, message: "Your session has ended. Please sign in again." };
     }
     headers.Authorization = `Bearer ${access}`;
   }
@@ -240,7 +240,7 @@ export async function authCompleteOnboarding(body: OnboardingBody): Promise<ApiR
 export async function authRefreshSession(): Promise<ApiResult<{ tokens: unknown }>> {
   const refresh = getRefreshToken();
   if (!refresh) {
-    return { ok: false, message: "No refresh token in storage." };
+    return { ok: false, message: "Your session has ended. Please sign in again." };
   }
   const res = await postJson<{ tokens: { access_token: string; refresh_token: string; token_type?: string } }>(
     AUTH_PATHS.refresh,

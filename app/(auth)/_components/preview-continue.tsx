@@ -9,8 +9,8 @@ type Props = {
   label?: string;
 };
 
-/** Shown when auth API base URL is not configured so demos can still navigate the app. */
-export function PreviewContinue({ href, label = "Continue in preview (skip API)" }: Props) {
+/** Shown only when the API origin is unavailable in a local preview environment. */
+export function PreviewContinue({ href, label = "Continue without connecting services" }: Props) {
   if (authApiConfigured()) return null;
   return (
     <p className="border-t border-[var(--rule)] pt-4 text-center">

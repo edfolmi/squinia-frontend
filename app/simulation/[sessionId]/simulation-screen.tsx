@@ -917,8 +917,8 @@ export function SimulationScreen({
                       disabled={sessionBusy || (composeMode === "reply" && replyBlocked)}
                       placeholder={
                         composeMode === "note"
-                          ? "Private note…"
-                          : "Type a reply…"
+                          ? "Private note..."
+                          : "Type a reply..."
                       }
                       className="max-h-[5.5rem] min-h-[2.5rem] w-full resize-none overflow-y-auto border-0 bg-transparent font-sans text-[15px] leading-[1.5] tracking-[-0.01em] text-[#111111] placeholder:text-[var(--faint)] disabled:cursor-not-allowed disabled:opacity-40 sm:max-h-[6.5rem]"
                     />
@@ -927,9 +927,9 @@ export function SimulationScreen({
                     <p className="mr-auto max-w-[min(100%,20rem)] font-mono text-[10px] leading-snug tracking-[0.06em] text-[var(--muted)] sm:order-first">
                       {replyBlocked
                         ? !getAccessToken()
-                          ? "Sign in required — no access token."
+                          ? "Your session has ended. Please sign in again."
                           : !isApiBaseConfigured()
-                            ? "Set NEXT_PUBLIC_API_BASE to your API (e.g. http://localhost:8000)."
+                            ? "We could not reach Squinia services. Please refresh and try again."
                             : "Chat unavailable."
                         : chatHttpError
                           ? chatHttpError

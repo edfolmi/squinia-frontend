@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+import { EmptyState, StatusBanner } from "@/app/_components/status-block";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 import { sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
-import logoMark from "@/app/squinia-logo.png";
 
 type MeData = {
   user: { id: string; full_name?: string; email?: string };
@@ -116,12 +116,7 @@ export function DashboardClient() {
   return (
     <div className="mx-auto max-w-5xl space-y-10">
       {error ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">
-          {error}{" "}
-          <Link href="/login" className="font-medium underline">
-            Sign in
-          </Link>
-        </p>
+        <StatusBanner message={error} action={{ href: "/login", label: "Sign in" }} />
       ) : null}
 
       <section className="overflow-hidden rounded-lg border border-[var(--rule)] bg-[linear-gradient(135deg,#ffffff_0%,#f5f8f2_54%,#e9f4e8_100%)] shadow-[0_22px_70px_-48px_rgba(11,32,20,0.42)]">
@@ -156,7 +151,7 @@ export function DashboardClient() {
             </div>
           </div>
           <div className="rounded-lg border border-white/80 bg-white/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-            <Image src={logoMark} alt="" className="h-16 w-auto" priority />
+            <SquiniaBrandLockup href="/dashboard" compact className="inline-flex" />
             <div className="mt-6 grid grid-cols-3 gap-3">
               <div>
                 <p className="text-2xl font-semibold text-[#0b2014]">
@@ -199,9 +194,15 @@ export function DashboardClient() {
           </Link>
         </div>
         {loading ? (
-          <p className="mt-6 text-[14px] text-[var(--muted)]">Loading…</p>
+          <p className="mt-6 text-[14px] text-[var(--muted)]">Loading...</p>
         ) : assignments.length === 0 ? (
-          <p className="mt-6 text-[14px] text-[var(--muted)]">No assignments yet.</p>
+          <div className="mt-6">
+            <EmptyState
+              title="No assignments yet"
+              message="When your organisation assigns a simulation, it will appear here with its due date and practice mode."
+              action={{ href: "/scenarios", label: "Browse scenarios" }}
+            />
+          </div>
         ) : (
           <ul className="mt-6 space-y-3">
             {assignments.map((a) => (
@@ -212,11 +213,11 @@ export function DashboardClient() {
                 <div className="min-w-0">
                   <p className="font-medium text-[#111111]">{a.title}</p>
                   <p className="mt-1 text-[13px] text-[var(--muted)]">
-                    {a.type.replace(/_/g, " ").toLowerCase()} · {a.status.toLowerCase().replace(/_/g, " ")}
+                    {a.type.replace(/_/g, " ").toLowerCase()} - {a.status.toLowerCase().replace(/_/g, " ")}
                     {a.due_at ? (
                       <>
                         {" "}
-                        · Due{" "}
+                        - Due{" "}
                         <time dateTime={a.due_at}>
                           {new Date(a.due_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                         </time>
@@ -246,9 +247,15 @@ export function DashboardClient() {
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">Recent sessions</p>
           <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em]">History</h2>
           {loading ? (
-            <p className="mt-5 text-[14px] text-[var(--muted)]">Loading…</p>
+            <p className="mt-5 text-[14px] text-[var(--muted)]">Loading...</p>
           ) : sessions.length === 0 ? (
-            <p className="mt-5 text-[14px] text-[var(--muted)]">No sessions yet. Start one from Assignments or Scenarios.</p>
+            <div className="mt-5">
+              <EmptyState
+                title="No sessions yet"
+                message="Start a simulation to create your first transcript, recording, and evaluation report."
+                action={{ href: "/scenarios", label: "Start practice" }}
+              />
+            </div>
           ) : (
             <ul className="mt-5 space-y-0 divide-y divide-[var(--rule)]">
               {sessions.slice(0, 8).map((row) => {
@@ -259,10 +266,10 @@ export function DashboardClient() {
                     <div className="min-w-0">
                       <p className="truncate font-medium text-[#111111]">{snapshotTitle(row.scenario_snapshot)}</p>
                       <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
-                        {kind} · {row.status.toLowerCase()}
+                        {kind} - {row.status.toLowerCase()}
                         {ended ? (
                           <>
-                            {" · "}
+                            {" - "}
                             {new Date(ended).toLocaleString(undefined, {
                               month: "short",
                               day: "numeric",
@@ -302,10 +309,10 @@ export function DashboardClient() {
                 {summary.avg_score != null ? (
                   <>
                     {" "}
-                    · avg score <strong className="text-[#111111]">{Math.round(summary.avg_score)}</strong>
+                    - avg score <strong className="text-[#111111]">{Math.round(summary.avg_score)}</strong>
                   </>
                 ) : null}{" "}
-                · trend <strong className="text-[#111111]">{summary.trend}</strong>
+                - trend <strong className="text-[#111111]">{summary.trend}</strong>
               </>
             ) : (
               "Sign in and complete sessions to see analytics."

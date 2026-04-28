@@ -9,6 +9,7 @@ type BrandLockupProps = {
   context?: string;
   orientation?: "stacked" | "inline";
   compact?: boolean;
+  priority?: boolean;
   className?: string;
 };
 
@@ -17,10 +18,11 @@ export function SquiniaBrandLockup({
   context,
   orientation = "stacked",
   compact = false,
+  priority = true,
   className = "",
 }: BrandLockupProps) {
   const image = compact ? logoMark : logoFull;
-  const imageClassName = compact ? "h-8 w-auto" : "h-8 w-auto max-w-[132px]";
+  const imageClassName = compact ? "h-9 w-auto" : "h-9 w-auto max-w-[152px]";
   const layoutClassName =
     orientation === "inline" ? "flex-row items-center justify-between gap-3" : "flex-col items-start gap-3";
 
@@ -31,7 +33,7 @@ export function SquiniaBrandLockup({
       aria-label={context ? `Squinia ${context}` : "Squinia"}
     >
       <span className="flex min-h-9 items-center">
-        <Image src={image} alt="Squinia" className={imageClassName} priority />
+        <Image src={image} alt="Squinia" className={imageClassName} priority={priority} />
       </span>
       {context ? (
         <span className="rounded-full border border-[var(--rule)] bg-[var(--field)]/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
@@ -41,4 +43,3 @@ export function SquiniaBrandLockup({
     </Link>
   );
 }
-

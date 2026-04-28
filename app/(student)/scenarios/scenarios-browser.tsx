@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { EmptyState, StatusBanner } from "@/app/_components/status-block";
 import { agentRoleLabel, scenarioDifficultyLabel, scenarioConfigToUiKind } from "@/app/_lib/simulation-mappers";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
@@ -43,7 +44,7 @@ function toPublished(s: ScenarioApi): ScenarioCard {
 function kindLabel(kind: PublishedScenario["kind"]) {
   switch (kind) {
     case "chat":
-      return "Transcript";
+      return "Chat";
     case "phone":
       return "Phone";
     case "video":
@@ -98,12 +99,12 @@ export function ScenariosBrowser() {
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
         <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          Published practice rooms in your organization. Each start opens a new attempt with a server-backed session id.
+          Choose a realistic practice room, meet the persona before you begin, and start a fresh attempt when you are ready.
         </p>
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
+        <StatusBanner message={error} />
       ) : null}
 
       <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -145,7 +146,7 @@ export function ScenariosBrowser() {
           </select>
         </div>
         <p className="text-[13px] text-[var(--muted)] sm:ml-auto sm:pb-2">
-          {loading ? "Loading…" : `${filtered.length} scenario${filtered.length === 1 ? "" : "s"}`}
+          {loading ? "Loading..." : `${filtered.length} scenario${filtered.length === 1 ? "" : "s"}`}
         </p>
       </div>
 
@@ -210,7 +211,10 @@ export function ScenariosBrowser() {
       </ul>
 
       {!loading && filtered.length === 0 ? (
-        <p className="text-center text-[14px] text-[var(--muted)]">No scenarios match these filters.</p>
+        <EmptyState
+          title="No scenarios match these filters"
+          message="Try a different role or difficulty level, or ask your organisation to publish more practice scenarios."
+        />
       ) : null}
     </div>
   );

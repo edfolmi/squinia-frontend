@@ -410,7 +410,7 @@ export function PhoneSimulationScreen({
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
         setBackendDeviceError("No microphone was found on this device.");
       } else {
-        setBackendDeviceError("Could not start the microphone for this LiveKit call.");
+        setBackendDeviceError("Could not start the microphone for this call.");
       }
       return false;
     }
@@ -805,7 +805,7 @@ export function PhoneSimulationScreen({
                 ) : null}
                 <p className="mt-4 max-w-sm text-[12px] leading-relaxed text-white/45">
                   {useBackendLiveKit
-                    ? "Voice runs through LiveKit with the workshop agent worker. End the simulation when you are finished."
+                    ? "Voice is connected for this practice call. End the simulation when you are finished."
                     : "Your microphone is captured in-browser for replay after you end the simulation."}
                 </p>
               </div>

@@ -401,7 +401,7 @@ function VideoTrainingLiveKitLayout({
         <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">{remoteName}</p>
         {remoteRole ? <p className="mt-2 max-w-md text-[15px] text-white/65">{remoteRole}</p> : null}
         <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-white/45">
-          Training partner is audio-only over LiveKit. Your camera is shown in the preview below.
+          Your training partner is audio-only for this call. Your camera preview stays visible below.
         </p>
       </div>
 
@@ -525,7 +525,18 @@ export function LiveKitRoomStage({
             elapsedLabel={elapsedLabel}
           />
         ) : (
-          <RoomAudioRenderer />
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center text-white">
+            <PersonaAvatar
+              persona={{ name: remoteName, avatarUrl: remoteAvatarUrl ?? "" }}
+              className="flex h-24 w-24 items-center justify-center rounded-full border border-white/15 bg-white/10 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10"
+            />
+            <p className="mt-4 text-lg font-semibold">{remoteName}</p>
+            {remoteRole ? <p className="mt-1 text-[13px] text-white/55">{remoteRole}</p> : null}
+            <p className="mt-5 max-w-xs text-[12px] leading-6 text-white/45">
+              Stay in the scenario and speak naturally. Your transcript will be used for coaching after the call.
+            </p>
+            <RoomAudioRenderer />
+          </div>
         )}
       </LiveKitRoom>
     </div>

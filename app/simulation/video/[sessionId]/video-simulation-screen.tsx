@@ -353,7 +353,7 @@ export function VideoSimulationScreen({
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
         setBackendDeviceError("No camera or microphone was found on this device.");
       } else {
-        setBackendDeviceError("Could not start camera and microphone for this LiveKit call.");
+        setBackendDeviceError("Could not start camera and microphone for this call.");
       }
       return false;
     }

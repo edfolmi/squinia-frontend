@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Squinia",
-  description: "Human performance training simulations",
+  description: "AI role-play simulations for interview practice and workplace communication.",
 };
 
 export default function RootLayout({

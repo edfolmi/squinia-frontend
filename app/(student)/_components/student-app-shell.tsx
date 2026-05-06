@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+import { brandingStyle } from "@/app/_lib/tenant-branding";
+import { activeTenantBranding, defaultMembership, useSession } from "@/app/_lib/use-session";
 
 import { StudentProfileMenu } from "./student-profile-menu";
 
@@ -38,11 +40,21 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export function StudentAppShell({ children }: { children: React.ReactNode }) {
+  const { session } = useSession();
+  const membership = defaultMembership(session);
+  const branding = activeTenantBranding(session);
+
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[#111111] md:flex-row">
+    <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[#111111] md:flex-row" style={brandingStyle(branding)}>
       <aside className="shrink-0 border-b border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f6f8f2_100%)] md:w-64 md:border-b-0 md:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-4 md:flex-col md:items-stretch md:py-6">
-          <SquiniaBrandLockup href="/dashboard" context="Student" orientation="inline" />
+          <SquiniaBrandLockup
+            href="/dashboard"
+            context="Student"
+            orientation="inline"
+            logoUrl={branding.logo_url}
+            brandName={membership?.tenant_name ?? "Squinia"}
+          />
           <p className="hidden max-w-[12rem] text-[12px] leading-relaxed text-[var(--muted)] md:block">
             Precision practice for high-stakes conversations.
           </p>
@@ -56,7 +68,9 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/92 px-4 backdrop-blur-sm sm:px-6">
-          <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#111111]">Learning workspace</p>
+          <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#111111]">
+            {membership?.tenant_name ?? "Learning workspace"}
+          </p>
           <div className="flex shrink-0 items-center gap-2">
             <StudentProfileMenu />
           </div>

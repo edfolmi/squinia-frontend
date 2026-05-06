@@ -130,6 +130,10 @@ export type AuthMeMembership = {
   tenant_slug?: string;
   org_role?: string;
   joined_at?: string;
+  branding?: {
+    logo_url?: string | null;
+    primary_color?: string | null;
+  };
 };
 
 /** ``GET /api/v1/auth/me`` — call after tokens are stored (login, refresh, onboarding). */

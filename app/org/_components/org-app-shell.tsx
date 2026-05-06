@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+import { brandingStyle } from "@/app/_lib/tenant-branding";
+import { activeTenantBranding, defaultMembership, isOrgOperatorRole, useSession } from "@/app/_lib/use-session";
 import { StudentProfileMenu } from "@/app/(student)/_components/student-profile-menu";
 
 const NAV = [
@@ -12,6 +15,7 @@ const NAV = [
   { href: "/org/personas", label: "Personas" },
   { href: "/org/assignments", label: "Assignments" },
   { href: "/org/analytics", label: "Analytics" },
+  { href: "/org/settings", label: "Settings" },
 ] as const;
 
 function navActive(href: string, pathname: string): boolean {
@@ -26,6 +30,8 @@ function navActive(href: string, pathname: string): boolean {
       return pathname.startsWith("/org/assignments");
     case "/org/analytics":
       return pathname === "/org/analytics";
+    case "/org/settings":
+      return pathname === "/org/settings" || pathname.startsWith("/org/settings/");
     default:
       return false;
   }
@@ -49,11 +55,34 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export function OrgAppShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { session, loading } = useSession();
+  const membership = defaultMembership(session);
+  const branding = activeTenantBranding(session);
+  const allowed = isOrgOperatorRole(session?.default_org_role);
+
+  useEffect(() => {
+    if (!loading && !allowed) router.replace("/dashboard");
+  }, [allowed, loading, router]);
+
+  if (loading || !allowed) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--background)] px-4 text-[14px] text-[var(--muted)]">
+        Checking workspace access...
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[#111111] md:flex-row">
+    <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[#111111] md:flex-row" style={brandingStyle(branding)}>
       <aside className="shrink-0 border-b border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f6f8f2_100%)] md:w-64 md:border-b-0 md:border-r">
         <div className="flex flex-col gap-2 px-4 py-4 md:py-6">
-          <SquiniaBrandLockup href="/org/cohorts" context="Operator" />
+          <SquiniaBrandLockup
+            href="/org/cohorts"
+            context="Operator"
+            logoUrl={branding.logo_url}
+            brandName={membership?.tenant_name ?? "Squinia"}
+          />
           <p className="max-w-[12rem] text-[12px] leading-relaxed text-[var(--muted)]">
             Scenario intelligence for every cohort, coach, and team lead.
           </p>
@@ -73,7 +102,9 @@ export function OrgAppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[56px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/92 px-4 backdrop-blur-sm sm:px-6">
-          <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#111111]">Operator dashboard</p>
+          <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#111111]">
+            {membership?.tenant_name ?? "Operator dashboard"}
+          </p>
           <div className="flex shrink-0 items-center gap-2">
             <StudentProfileMenu />
           </div>

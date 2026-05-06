@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useSession } from "@/app/_lib/use-session";
+import { isOrgOperatorRole, useSession } from "@/app/_lib/use-session";
 import { clearAuthTokens } from "@/app/(auth)/_lib/auth-tokens";
 
 function initialsFromName(name: string): string {
@@ -21,6 +21,7 @@ export function StudentProfileMenu() {
   const fullName = session?.user?.full_name || "User";
   const email = session?.user?.email || "";
   const initials = useMemo(() => initialsFromName(fullName), [fullName]);
+  const canManageOrg = isOrgOperatorRole(session?.default_org_role);
 
   useEffect(() => {
     if (!open) return;
@@ -93,14 +94,26 @@ export function StudentProfileMenu() {
             >
               Password &amp; security
             </Link>
-            <Link
-              role="menuitem"
-              href="/settings/billing"
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-[14px] text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
-            >
-              Plan &amp; billing
-            </Link>
+            {canManageOrg ? (
+              <>
+                <Link
+                  role="menuitem"
+                  href="/org/settings"
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-2.5 text-[14px] text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
+                >
+                  Organization settings
+                </Link>
+                <Link
+                  role="menuitem"
+                  href="/org/settings/billing"
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-2.5 text-[14px] text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
+                >
+                  Plan &amp; billing
+                </Link>
+              </>
+            ) : null}
           </div>
           <div className="border-t border-[var(--rule)] py-1">
             <button

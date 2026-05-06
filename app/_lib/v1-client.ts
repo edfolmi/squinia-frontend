@@ -103,6 +103,36 @@ export async function v1Request<T>(method: string, path: string, options?: V1Req
   }
 }
 
+export async function v1Upload<T>(path: string, formData: FormData): Promise<ApiResult<T>> {
+  const base = getApiBase();
+  if (!base) return { ok: false, message: serviceUnavailableMessage() };
+
+  const token = getAccessToken();
+  if (!token) {
+    redirectToLogin();
+    return { ok: false, message: "Your session has ended. Please sign in again." };
+  }
+
+  const origin = base.replace(/\/+$/, "");
+  const pathPart = path.startsWith("/api/") ? path : v1Path(path);
+  const url = new URL(pathPart.replace(/^\//, ""), `${origin}/`).href;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      credentials: "include",
+    });
+    const raw = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const out = parseApiJson<T>(res, raw);
+    if (!res.ok && res.status === 401) redirectToLogin();
+    return out;
+  } catch (e) {
+    return { ok: false, message: requestFailedMessage(e) };
+  }
+}
+
 export function v1Path(segment: string): string {
   return `${API_PREFIX}${segment.startsWith("/") ? segment : `/${segment}`}`;
 }
@@ -115,6 +145,7 @@ export const v1 = {
   patch: <T>(path: string, body?: unknown) =>
     v1Request<T>("PATCH", path.startsWith("/api/") ? path : v1Path(path), { body }),
   delete: <T>(path: string) => v1Request<T>("DELETE", path.startsWith("/api/") ? path : v1Path(path)),
+  upload: v1Upload,
 };
 
 export type ItemsData<T> = { items: T[] };

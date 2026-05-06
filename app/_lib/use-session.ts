@@ -20,6 +20,12 @@ export type SessionMembership = {
   tenant_slug: string;
   org_role: string;
   joined_at: string;
+  branding?: TenantBranding;
+};
+
+export type TenantBranding = {
+  logo_url?: string | null;
+  primary_color?: string | null;
 };
 
 export type SessionData = {
@@ -48,8 +54,21 @@ export function useSession() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   return { session, loading, error, reload: load };
+}
+
+export function defaultMembership(session: SessionData | null): SessionMembership | null {
+  if (!session?.default_tenant_id) return null;
+  return session.memberships.find((m) => m.tenant_id === session.default_tenant_id) ?? null;
+}
+
+export function activeTenantBranding(session: SessionData | null): TenantBranding {
+  return defaultMembership(session)?.branding ?? {};
+}
+
+export function isOrgOperatorRole(role: string | null | undefined): boolean {
+  return role === "ORG_OWNER" || role === "ORG_ADMIN" || role === "INSTRUCTOR";
 }

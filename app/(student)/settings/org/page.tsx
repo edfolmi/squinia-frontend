@@ -7,23 +7,31 @@ import { useCallback, useEffect, useState } from "react";
 import { OrgAdminGate } from "../_components/org-admin-gate";
 import { OrgSettingsForm } from "./org-settings-form";
 
-type TenantData = { id: string; name: string; slug: string; plan: string; is_active: boolean };
+type TenantData = {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  is_active: boolean;
+  branding?: { logo_url?: string | null; primary_color?: string | null };
+};
 
 export default function SettingsOrgPage() {
   const { session, loading: sessionLoading } = useSession();
+  const tenantId = session?.default_tenant_id ?? null;
   const [tenant, setTenant] = useState<TenantData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!session?.default_tenant_id) { setLoading(false); return; }
+    if (!tenantId) { setLoading(false); return; }
     setLoading(true);
-    const res = await v1.get<{ tenant: TenantData }>(`tenants/${session.default_tenant_id}`);
+    const res = await v1.get<{ tenant: TenantData }>(`tenants/${tenantId}`);
     if (res.ok) setTenant(res.data.tenant);
     setLoading(false);
-  }, [session?.default_tenant_id]);
+  }, [tenantId]);
 
   useEffect(() => {
-    if (!sessionLoading) void load();
+    if (!sessionLoading) void Promise.resolve().then(load);
   }, [sessionLoading, load]);
 
   return (
@@ -41,9 +49,11 @@ export default function SettingsOrgPage() {
           <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
             <OrgSettingsForm
               initial={{
+                id: tenant.id,
                 name: tenant.name,
                 slug: tenant.slug,
                 planName: tenant.plan ?? "Free",
+                branding: tenant.branding,
               }}
             />
           </section>

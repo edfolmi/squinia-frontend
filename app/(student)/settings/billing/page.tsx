@@ -12,19 +12,20 @@ type TenantData = { id: string; name: string; slug: string; plan: string; is_act
 
 export default function SettingsBillingPage() {
   const { session, loading: sessionLoading } = useSession();
+  const tenantId = session?.default_tenant_id ?? null;
   const [tenant, setTenant] = useState<TenantData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!session?.default_tenant_id) { setLoading(false); return; }
+    if (!tenantId) { setLoading(false); return; }
     setLoading(true);
-    const res = await v1.get<{ tenant: TenantData }>(`tenants/${session.default_tenant_id}`);
+    const res = await v1.get<{ tenant: TenantData }>(`tenants/${tenantId}`);
     if (res.ok) setTenant(res.data.tenant);
     setLoading(false);
-  }, [session?.default_tenant_id]);
+  }, [tenantId]);
 
   useEffect(() => {
-    if (!sessionLoading) void load();
+    if (!sessionLoading) void Promise.resolve().then(load);
   }, [sessionLoading, load]);
 
   return (

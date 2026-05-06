@@ -11,6 +11,8 @@ type BrandLockupProps = {
   compact?: boolean;
   priority?: boolean;
   className?: string;
+  logoUrl?: string | null;
+  brandName?: string;
 };
 
 export function SquiniaBrandLockup({
@@ -20,6 +22,8 @@ export function SquiniaBrandLockup({
   compact = false,
   priority = true,
   className = "",
+  logoUrl,
+  brandName = "Squinia",
 }: BrandLockupProps) {
   const image = compact ? logoMark : logoFull;
   const imageClassName = compact ? "h-9 w-auto" : "h-9 w-auto max-w-[152px]";
@@ -33,7 +37,12 @@ export function SquiniaBrandLockup({
       aria-label={context ? `Squinia ${context}` : "Squinia"}
     >
       <span className="flex min-h-9 items-center">
-        <Image src={image} alt="Squinia" className={imageClassName} priority={priority} />
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt={brandName} className={`${imageClassName} object-contain`} />
+        ) : (
+          <Image src={image} alt="Squinia" className={imageClassName} priority={priority} />
+        )}
       </span>
       {context ? (
         <span className="rounded-full border border-[var(--rule)] bg-[var(--field)]/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">

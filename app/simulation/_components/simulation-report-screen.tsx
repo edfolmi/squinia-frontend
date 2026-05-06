@@ -11,6 +11,7 @@ import {
   type BackendSessionDetail,
   type BackendSessionMessage,
 } from "../_lib/backend-simulation";
+import { getSessionRecording, uploadSessionRecording } from "../_lib/session-recordings";
 import {
   type CompetencyBlock,
   type SessionReportStored,
@@ -19,6 +20,7 @@ import {
   formatClock,
   formatMetricDuration,
   loadSessionReport,
+  saveSessionReport,
 } from "../_lib/session-report";
 
 function IconBack() {
@@ -267,7 +269,10 @@ function mergeLocalWithBackend(
     interviewerTitle: local.interviewerTitle || backend.interviewerTitle,
     evaluation: backend.evaluation,
     recording: local.recording ?? backend.recording,
-    recordingMime: local.recordingMime ?? backend.recordingMime,
+    recordingMime: backend.recordingMime ?? local.recordingMime,
+    recordingUrl: backend.recordingUrl ?? local.recordingUrl,
+    recordingRemoteId: backend.recordingRemoteId ?? local.recordingRemoteId,
+    recordingExpiresAt: backend.recordingExpiresAt ?? local.recordingExpiresAt,
   };
 }
 
@@ -412,6 +417,33 @@ export function SimulationReportScreen({
             : local
               ? { ...local, evaluation: pendingEvaluation(local.evaluation.scorecardLabel) }
               : null;
+          if (data && (kind === "phone" || kind === "video")) {
+            const remote = await getSessionRecording(sessionId);
+            if (remote) {
+              data = {
+                ...data,
+                recordingUrl: remote.playback_url,
+                recordingRemoteId: remote.id,
+                recordingExpiresAt: remote.expires_at,
+                recordingMime: remote.mime_type || data.recordingMime,
+              };
+            } else if (data.recording && data.recording.size > 0) {
+              const uploaded = await uploadSessionRecording(sessionId, data.recording, {
+                mode: kind === "video" ? "VIDEO" : "VOICE",
+                durationMs: data.metrics.handlingTimeSec * 1000,
+              }).catch(() => null);
+              if (uploaded) {
+                data = {
+                  ...data,
+                  recordingUrl: uploaded.playback_url,
+                  recordingRemoteId: uploaded.id,
+                  recordingExpiresAt: uploaded.expires_at,
+                  recordingMime: uploaded.mime_type || data.recordingMime,
+                };
+                await saveSessionReport(data).catch(() => undefined);
+              }
+            }
+          }
         }
         if (cancelled) return;
         setReport(data);
@@ -439,16 +471,17 @@ export function SimulationReportScreen({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
 
-  const recordingUrl = useMemo(() => {
+  const localRecordingUrl = useMemo(() => {
+    if (report?.recordingUrl) return null;
     if (!report?.recording || report.recording.size === 0) return null;
     return URL.createObjectURL(report.recording);
   }, [report]);
 
   useEffect(() => {
     return () => {
-      if (recordingUrl) URL.revokeObjectURL(recordingUrl);
+      if (localRecordingUrl) URL.revokeObjectURL(localRecordingUrl);
     };
-  }, [recordingUrl]);
+  }, [localRecordingUrl]);
 
   const effectiveReport = report && report.version === 1 ? report : null;
   const displayKind = effectiveReport?.kind ?? kind;
@@ -477,11 +510,18 @@ export function SimulationReportScreen({
     }
   }, [effectiveReport]);
 
+  const recordingUrl = effectiveReport?.recordingUrl || localRecordingUrl;
+  const recordingStatus = effectiveReport?.recordingUrl
+    ? "Recording saved"
+    : recordingUrl
+      ? "Recording is still saved on this device"
+      : "Recording is unavailable for this session";
+
   const downloadRecording = useCallback(() => {
-    if (!effectiveReport?.recording || !recordingUrl) return;
+    if (!effectiveReport || !recordingUrl) return;
     const a = document.createElement("a");
     a.href = recordingUrl;
-    const mime = effectiveReport.recordingMime ?? effectiveReport.recording.type ?? "";
+    const mime = effectiveReport.recordingMime ?? effectiveReport.recording?.type ?? "";
     const ext = mime.includes("ogg") ? "ogg" : mime.includes("mp4") ? "m4a" : "webm";
     a.download = `squinia-${displayKind}-${sessionId.slice(0, 8)}.${ext}`;
     a.click();
@@ -637,6 +677,9 @@ export function SimulationReportScreen({
 
           {displayKind === "video" && recordingUrl ? (
             <div className="px-5 pb-6 sm:px-6">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                {recordingStatus}
+              </p>
               <div className="relative overflow-hidden rounded-2xl border border-[var(--rule)] bg-black shadow-inner">
                 <video
                   src={recordingUrl}
@@ -649,12 +692,12 @@ export function SimulationReportScreen({
             </div>
           ) : displayKind === "video" ? (
             <div className="mx-5 mb-6 rounded-2xl border border-dashed border-[var(--rule)] bg-[var(--field)]/50 px-4 py-8 text-center text-[14px] text-[var(--muted)] sm:mx-6">
-              No recording was captured for this session (permission denied or recorder unsupported).
+              Recording is unavailable for this session.
             </div>
           ) : displayKind === "phone" && recordingUrl ? (
             <div className="px-5 pb-6 sm:px-6">
               <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-                Session recording · learner + agent
+                {recordingStatus}
               </p>
               <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 shadow-inner">
                 <audio src={recordingUrl} controls className="w-full" preload="metadata" />
@@ -662,7 +705,7 @@ export function SimulationReportScreen({
             </div>
           ) : displayKind === "phone" ? (
             <div className="mx-5 mb-4 rounded-2xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-6 text-center text-[13px] text-[var(--muted)] sm:mx-6">
-              No session recording was captured for this call (permission denied, recorder unsupported, or audio never connected).
+              Recording is unavailable for this session.
             </div>
           ) : (
             <div className="mx-5 mb-4 rounded-2xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-6 text-center text-[13px] text-[var(--muted)] sm:mx-6">

@@ -62,6 +62,9 @@ export type SessionReportStored = {
   /** Present for video when capture succeeded */
   recording?: Blob;
   recordingMime?: string;
+  recordingUrl?: string;
+  recordingRemoteId?: string;
+  recordingExpiresAt?: string;
 };
 
 type SessionReportPersisted = Omit<SessionReportStored, "recording"> & {

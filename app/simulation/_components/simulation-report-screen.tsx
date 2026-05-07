@@ -11,7 +11,7 @@ import {
   type BackendSessionDetail,
   type BackendSessionMessage,
 } from "../_lib/backend-simulation";
-import { getSessionRecording, uploadSessionRecording } from "../_lib/session-recordings";
+import { getSessionRecording, startBackgroundSessionRecordingUpload } from "../_lib/session-recordings";
 import {
   type CompetencyBlock,
   type SessionReportStored,
@@ -419,29 +419,31 @@ export function SimulationReportScreen({
               : null;
           if (data && (kind === "phone" || kind === "video")) {
             const remote = await getSessionRecording(sessionId);
-            if (remote) {
+            if (remote?.status === "READY" && remote.playback_url) {
               data = {
                 ...data,
                 recordingUrl: remote.playback_url,
                 recordingRemoteId: remote.id,
-                recordingExpiresAt: remote.expires_at,
+                recordingExpiresAt: remote.expires_at ?? undefined,
                 recordingMime: remote.mime_type || data.recordingMime,
               };
             } else if (data.recording && data.recording.size > 0) {
-              const uploaded = await uploadSessionRecording(sessionId, data.recording, {
+              const reportForUpload = data;
+              void startBackgroundSessionRecordingUpload(sessionId, data.recording, {
                 mode: kind === "video" ? "VIDEO" : "VOICE",
                 durationMs: data.metrics.handlingTimeSec * 1000,
-              }).catch(() => null);
-              if (uploaded) {
-                data = {
-                  ...data,
+              })?.then((uploaded) => {
+                if (!uploaded?.playback_url || cancelled) return;
+                const next = {
+                  ...reportForUpload,
                   recordingUrl: uploaded.playback_url,
                   recordingRemoteId: uploaded.id,
-                  recordingExpiresAt: uploaded.expires_at,
-                  recordingMime: uploaded.mime_type || data.recordingMime,
+                  recordingExpiresAt: uploaded.expires_at ?? undefined,
+                  recordingMime: uploaded.mime_type || reportForUpload.recordingMime,
                 };
-                await saveSessionReport(data).catch(() => undefined);
-              }
+                setReport(next);
+                return saveSessionReport(next).catch(() => undefined);
+              });
             }
           }
         }
@@ -461,6 +463,40 @@ export function SimulationReportScreen({
       cancelled = true;
     };
   }, [sessionId, kind]);
+
+  useEffect(() => {
+    if (!isBackendSessionId(sessionId)) return;
+    if (kind !== "phone" && kind !== "video") return;
+    if (report?.recordingUrl) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      void getSessionRecording(sessionId).then((remote) => {
+        if (cancelled || !remote || remote.status !== "READY" || !remote.playback_url) return;
+        setReport((current) => {
+          if (!current) return current;
+          const next = {
+            ...current,
+            recordingUrl: remote.playback_url ?? undefined,
+            recordingRemoteId: remote.id,
+            recordingExpiresAt: remote.expires_at ?? undefined,
+            recordingMime: remote.mime_type || current.recordingMime,
+          };
+          void saveSessionReport(next).catch(() => undefined);
+          return next;
+        });
+        window.clearInterval(timer);
+      });
+      if (attempts >= 24) window.clearInterval(timer);
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [sessionId, kind, report?.recordingUrl]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -514,7 +550,7 @@ export function SimulationReportScreen({
   const recordingStatus = effectiveReport?.recordingUrl
     ? "Recording saved"
     : recordingUrl
-      ? "Recording is still saved on this device"
+      ? "Recording is saved on this device. Cloud sync will retry."
       : "Recording is unavailable for this session";
 
   const downloadRecording = useCallback(() => {

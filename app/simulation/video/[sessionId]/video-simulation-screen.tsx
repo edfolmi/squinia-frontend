@@ -23,7 +23,7 @@ import {
   finalizeLiveKitRecording,
 } from "../../_lib/livekit-session-recording";
 import { PersonaAvatar, personaFromScenarioLike, type RuntimePersona } from "../../_lib/persona-runtime";
-import { uploadSessionRecording } from "../../_lib/session-recordings";
+import { startBackgroundSessionRecordingUpload } from "../../_lib/session-recordings";
 import { buildStoredVideoReport, saveSessionReport } from "../../_lib/session-report";
 import { useVideoSimulationMedia } from "./hooks/use-video-simulation-media";
 
@@ -575,21 +575,21 @@ export function VideoSimulationScreen({
           await saveSessionReport(reportToPersist);
         }
         if (blob && blob.size > 0 && isBackendSessionId(sessionId)) {
-          const remote = await uploadSessionRecording(sessionId, blob, {
+          void startBackgroundSessionRecordingUpload(sessionId, blob, {
             mode: "VIDEO",
             durationMs: callElapsed * 1000,
-          }).catch(() => null);
-          if (remote) {
-            await saveSessionReport({
+          })?.then((remote) => {
+            if (!remote?.playback_url) return;
+            return saveSessionReport({
               ...reportToPersist,
               recordingUrl: remote.playback_url,
               recordingRemoteId: remote.id,
-              recordingExpiresAt: remote.expires_at,
+              recordingExpiresAt: remote.expires_at ?? undefined,
               recordingMime: remote.mime_type || reportToPersist.recordingMime,
             }).catch(() => undefined);
-          }
+          });
         }
-        await disposeLiveKitRecording(sessionId);
+        void disposeLiveKitRecording(sessionId).catch(() => undefined);
         router.push(`/simulation/${sessionId}/report?kind=video`);
         return;
       }
@@ -619,19 +619,19 @@ export function VideoSimulationScreen({
         await saveSessionReport(reportToPersist);
       }
       if (blob && blob.size > 0 && isBackendSessionId(sessionId)) {
-        const remote = await uploadSessionRecording(sessionId, blob, {
+        void startBackgroundSessionRecordingUpload(sessionId, blob, {
           mode: "VIDEO",
           durationMs: (phase === "live" ? callElapsed : 0) * 1000,
-        }).catch(() => null);
-        if (remote) {
-          await saveSessionReport({
+        })?.then((remote) => {
+          if (!remote?.playback_url) return;
+          return saveSessionReport({
             ...reportToPersist,
             recordingUrl: remote.playback_url,
             recordingRemoteId: remote.id,
-            recordingExpiresAt: remote.expires_at,
+            recordingExpiresAt: remote.expires_at ?? undefined,
             recordingMime: remote.mime_type || reportToPersist.recordingMime,
           }).catch(() => undefined);
-        }
+        });
       }
       setPhase("prepare");
       router.push(`/simulation/${sessionId}/report?kind=video`);

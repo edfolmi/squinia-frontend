@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
@@ -101,6 +101,7 @@ function skillAverageFromSkillMap(skillMap: { criteria?: string[]; members?: Rec
 }
 
 export function CohortDetailPageClient() {
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const cohortId = params.id;
 
@@ -112,6 +113,10 @@ export function CohortDetailPageClient() {
   const [skillAverage, setSkillAverage] = useState<OrgSkillProfile | null>(null);
   const [avgScore, setAvgScore] = useState<number | null>(null);
   const [completion, setCompletion] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!cohortId) return;
@@ -133,6 +138,8 @@ export function CohortDetailPageClient() {
       return;
     }
     setCohort(cRes.data.cohort);
+    setEditName(cRes.data.cohort.name);
+    setEditDescription(cRes.data.cohort.description ?? "");
 
     if (mRes.ok) setMembers(mapMembers(mRes.data.items ?? []));
     else setMembers([]);
@@ -159,7 +166,7 @@ export function CohortDetailPageClient() {
   }, [cohortId]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   if (!cohortId) {
@@ -167,7 +174,7 @@ export function CohortDetailPageClient() {
   }
 
   if (loading) {
-    return <p className="text-[14px] text-[var(--muted)]">Loading cohort…</p>;
+    return <p className="text-[14px] text-[var(--muted)]">Loading cohort...</p>;
   }
 
   if (!cohort) {
@@ -190,16 +197,92 @@ export function CohortDetailPageClient() {
         >
           Cohorts
         </Link>
-        <h1 className="mt-4 text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">{cohort.name}</h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">{cohort.description ?? ""}</p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">{cohort.name}</h1>
+            <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">{cohort.description ?? ""}</p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing((v) => !v)}
+              className="rounded-xl border border-[var(--rule-strong)] px-4 py-2 text-[13px] font-medium text-[#111111] hover:bg-[var(--field)]"
+            >
+              {editing ? "Close" : "Edit"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm(`Delete ${cohort.name}?`)) return;
+                const res = await v1.delete(`cohorts/${cohortId}`);
+                if (res.ok) router.push("/org/cohorts");
+                else setError(res.message);
+              }}
+              className="rounded-xl border border-red-200 px-4 py-2 text-[13px] font-medium text-red-700 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+        {editing ? (
+          <form
+            className="mt-5 space-y-3 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSaving(true);
+              const res = await v1.patch<{ cohort: CohortApi }>(`cohorts/${cohortId}`, {
+                name: editName.trim(),
+                description: editDescription.trim() || null,
+              });
+              setSaving(false);
+              if (res.ok) {
+                setCohort(res.data.cohort);
+                setEditing(false);
+                void load();
+              } else {
+                setError(res.message);
+              }
+            }}
+          >
+            <div>
+              <label htmlFor="cohortName" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                Cohort name
+              </label>
+              <input
+                id="cohortName"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+              />
+            </div>
+            <div>
+              <label htmlFor="cohortDescription" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
+                Description
+              </label>
+              <textarea
+                id="cohortDescription"
+                rows={3}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[15px] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+              />
+            </div>
+            <button type="submit" disabled={saving} className="sim-btn-accent px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50">
+              {saving ? "Saving..." : "Save cohort"}
+            </button>
+          </form>
+        ) : null}
+        {error ? (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-6 font-mono text-[12px] tabular-nums">
           <p className="text-[var(--muted)]">
             <span className="text-[var(--faint)]">Avg score</span>{" "}
-            <span className="ml-1 font-medium text-[#166534]">{avgScore != null ? `${avgScore}%` : "—"}</span>
+            <span className="ml-1 font-medium text-[#166534]">{avgScore != null ? `${avgScore}%` : "-"}</span>
           </p>
           <p className="text-[var(--muted)]">
             <span className="text-[var(--faint)]">Completion</span>{" "}
-            <span className="ml-1 font-medium text-[#111111]">{completion != null ? `${completion}%` : "—"}</span>
+            <span className="ml-1 font-medium text-[#111111]">{completion != null ? `${completion}%` : "-"}</span>
           </p>
           <p className="text-[var(--muted)]">
             <span className="text-[var(--faint)]">Program</span>{" "}
@@ -208,7 +291,7 @@ export function CohortDetailPageClient() {
         </div>
       </div>
 
-      <CohortDetailTabs cohortId={cohortId} members={members} progress={progress} skillAverage={skillAverage} />
+      <CohortDetailTabs cohortId={cohortId} members={members} progress={progress} skillAverage={skillAverage} onChanged={load} />
     </div>
   );
 }

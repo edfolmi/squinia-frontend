@@ -13,9 +13,9 @@ export default function SettingsMembersPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Members</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Staff</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">
-          Invite colleagues and manage roles.
+          Invite team members and manage organization dashboard access.
         </p>
       </div>
       <OrgAdminGate>

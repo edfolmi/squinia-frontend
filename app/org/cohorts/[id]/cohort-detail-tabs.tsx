@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 import { v1 } from "@/app/_lib/v1-client";
@@ -31,9 +32,10 @@ type Props = {
   members: CohortMemberVm[];
   progress: ProgressRowVm[];
   skillAverage: OrgSkillProfile | null;
+  onChanged: () => void;
 };
 
-export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: Props) {
+export function CohortDetailTabs({ cohortId, members, progress, skillAverage, onChanged }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Members");
 
   const progressRows = useMemo(() => {
@@ -65,9 +67,9 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: 
 
       {tab === "Members" ? (
         <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Member list</h2>
-            <InviteRow />
+          <div className="flex flex-col gap-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Student list</h2>
+            <BulkInvitePanel cohortId={cohortId} onChanged={onChanged} />
           </div>
           <ul className="mt-5 divide-y divide-[var(--rule)]">
             {members.map((m) => (
@@ -79,13 +81,27 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: 
                     Joined {new Date(m.invitedAt).toLocaleDateString()}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] ${
-                    m.status === "active" ? "bg-[#e6f4ea] text-[#166534]" : "bg-amber-50 text-[#a16207]"
-                  }`}
-                >
-                  {m.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] ${
+                      m.status === "active" ? "bg-[#e6f4ea] text-[#166534]" : "bg-amber-50 text-[#a16207]"
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!window.confirm(`Remove ${m.email} from this cohort?`)) return;
+                      const res = await v1.delete(`cohorts/${cohortId}/members/${m.id}`);
+                      if (res.ok) onChanged();
+                      else window.alert(res.message);
+                    }}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-[12px] font-medium text-red-700 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -118,9 +134,9 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: 
                       <td className="px-4 py-3 text-[var(--muted)]">{p.scenarioTitle}</td>
                       <td className="px-4 py-3 font-mono tabular-nums">{p.attempts}</td>
                       <td className="px-4 py-3 font-mono tabular-nums text-[#166534]">
-                        {p.bestScore != null ? `${p.bestScore}%` : "—"}
+                        {p.bestScore != null ? `${p.bestScore}%` : "-"}
                       </td>
-                      <td className="px-4 py-3">{p.completed ? "Yes" : "—"}</td>
+                      <td className="px-4 py-3">{p.completed ? "Yes" : "-"}</td>
                     </tr>
                   );
                 })}
@@ -150,25 +166,23 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: 
             <div className="w-full max-w-md space-y-4">
               <h3 className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Per student</h3>
               <ul className="space-y-3">
-                {progressRows.map(({ member, rows }) => {
-                  return (
-                    <li
-                      key={member.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-[var(--rule)] px-3 py-2.5"
+                {progressRows.map(({ member, rows }) => (
+                  <li
+                    key={member.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[var(--rule)] px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium text-[#111111]">{member.name}</p>
+                      <p className="text-[11px] text-[var(--faint)]">{rows.length} tracked rows</p>
+                    </div>
+                    <a
+                      href={`/org/analytics?member=${member.id}&cohort=${cohortId}`}
+                      className="shrink-0 rounded-lg border border-[var(--rule-strong)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-medium text-[#111111]">{member.name}</p>
-                        <p className="text-[11px] text-[var(--faint)]">{rows.length} tracked rows</p>
-                      </div>
-                      <a
-                        href={`/org/analytics?member=${member.id}&cohort=${cohortId}`}
-                        className="shrink-0 rounded-lg border border-[var(--rule-strong)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
-                      >
-                        Drill down
-                      </a>
-                    </li>
-                  );
-                })}
+                      Drill down
+                    </a>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -178,48 +192,98 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage }: 
   );
 }
 
-function InviteRow() {
-  const [email, setEmail] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+type InviteResult = {
+  email: string;
+  status: string;
+  invite_id?: string;
+  invite_url?: string;
+  message?: string;
+};
+
+function extractInviteTokens(input: string): string[] {
+  return Array.from(new Set(input.split(/[\s,;]+/u).map((part) => part.trim().toLowerCase()).filter(Boolean)));
+}
+
+function BulkInvitePanel({ cohortId, onChanged }: { cohortId: string; onChanged: () => void }) {
+  const [inviteText, setInviteText] = useState("");
+  const [results, setResults] = useState<InviteResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const inviteTokens = useMemo(() => extractInviteTokens(inviteText), [inviteText]);
+  const validEmailCount = inviteTokens.filter((part) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(part)).length;
+
+  async function onCsv(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setError("CSV must be smaller than 1 MB.");
+      return;
+    }
+    const text = await file.text();
+    setInviteText((current) => `${current}\n${text}`.trim());
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setResults([]);
+    if (!inviteTokens.length) {
+      setError("Add at least one student email address.");
+      return;
+    }
+    setLoading(true);
+    const res = await v1.post<{ results: InviteResult[] }>(`cohorts/${cohortId}/invites/bulk`, {
+      emails: inviteTokens,
+      expires_in_days: 14,
+    });
+    setLoading(false);
+    if (res.ok) {
+      setResults(res.data.results ?? []);
+      setInviteText("");
+      onChanged();
+    } else {
+      setError(res.message);
+    }
+  }
 
   return (
-    <form
-      className="flex w-full max-w-md flex-col gap-2 sm:flex-row sm:items-center"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setMsg(null);
-        setLoading(true);
-        const res = await v1.post("auth/invites", {
-          email: email.trim(),
-          role: "STUDENT",
-          expires_in_days: 14,
-        });
-        setLoading(false);
-        if (res.ok) {
-          setMsg("Invite created.");
-          setEmail("");
-        } else {
-          setMsg(res.message);
-        }
-      }}
-    >
-      <input
-        type="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="learner@company.com"
-        className="min-w-0 flex-1 rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+    <form className="w-full max-w-2xl space-y-3" onSubmit={submit}>
+      <textarea
+        value={inviteText}
+        onChange={(e) => setInviteText(e.target.value)}
+        placeholder="student@school.edu, another@school.edu"
+        rows={3}
+        className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[13px] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
       />
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-xl border border-[var(--rule-strong)] px-4 py-2 text-[12px] font-medium text-[#111111] hover:bg-[var(--field)] disabled:opacity-50"
-      >
-        {loading ? "Sending…" : "Invite"}
-      </button>
-      {msg ? <p className="mt-2 w-full text-[12px] text-[var(--muted)]">{msg}</p> : null}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-[var(--rule-strong)] px-4 py-2 text-[12px] font-medium text-[#111111] hover:bg-[var(--field)]">
+          Upload CSV
+          <input type="file" accept=".csv,text/csv" onChange={onCsv} className="sr-only" />
+        </label>
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-[var(--muted)]">{validEmailCount} valid / {inviteTokens.length} total</span>
+          <button type="submit" disabled={loading} className="sim-btn-accent px-4 py-2 font-mono text-[10px] uppercase disabled:opacity-50">
+            {loading ? "Sending..." : "Invite students"}
+          </button>
+        </div>
+      </div>
+      {error ? <p className="text-[12px] text-red-700">{error}</p> : null}
+      {results.length ? (
+        <div className="overflow-x-auto rounded-xl border border-[var(--rule)]">
+          <table className="w-full min-w-[480px] text-left text-[12px]">
+            <tbody>
+              {results.map((r) => (
+                <tr key={`${r.email}-${r.status}`} className="border-b border-[var(--rule)] last:border-0">
+                  <td className="px-3 py-2 font-medium text-[#111111]">{r.email}</td>
+                  <td className="px-3 py-2 font-mono uppercase text-[var(--muted)]">{r.status}</td>
+                  <td className="px-3 py-2 text-[var(--muted)]">{r.message ?? (r.invite_url ? "Invite link created" : "")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </form>
   );
 }

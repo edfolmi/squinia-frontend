@@ -161,6 +161,7 @@ export type AuthMeMembership = {
 /** ``GET /api/v1/auth/me`` — call after tokens are stored (login, refresh, onboarding). */
 export type AuthMeResponse = {
   user: {
+    platform_role?: string;
     onboarding_completed_at?: string | null;
     [key: string]: unknown;
   };
@@ -188,6 +189,9 @@ function isPersonalWorkspaceTenant(m: AuthMeMembership | undefined): boolean {
 export function postAuthDestination(me: AuthMeResponse | null): string {
   if (!me) {
     return "/dashboard";
+  }
+  if (me.user?.platform_role === "PLATFORM_OWNER") {
+    return "/admin";
   }
 
   const completed = Boolean(me.user?.onboarding_completed_at);

@@ -7,12 +7,13 @@ import { useCallback, useEffect, useState } from "react";
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
 import { EmptyState, StatusBanner } from "@/app/_components/status-block";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
-import { sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
+import { scenarioConfigToUiKind, sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
+import { StartSimulationButton } from "@/app/simulation/_components/start-simulation-button";
 
 type MeData = {
   user: { id: string; full_name?: string; email?: string };
   default_tenant_id: string | null;
-  memberships: unknown[];
+  memberships: { tenant_id?: string; account_kind?: string; org_role?: string; tenant_name?: string }[];
 };
 
 type AssignmentItem = {
@@ -55,6 +56,62 @@ type UserSummary = {
   cohort_name?: string | null;
 };
 
+type LearnerHome = {
+  context: {
+    account_kind: string;
+    tenant_id: string;
+    is_individual: boolean;
+  };
+  level: {
+    number: number;
+    name: string;
+    points: number;
+    progress: number;
+    next_level?: { number: number; name: string } | null;
+    required_missions: string[];
+  };
+  streak: {
+    current: number;
+    longest: number;
+    weekly_completions: number;
+    history: { date: string; completed: boolean }[];
+  };
+  daily_mission: {
+    kind: string;
+    title: string;
+    description: string;
+  };
+  next_scenario?: {
+    id: string;
+    title: string;
+    description?: string | null;
+    difficulty?: string;
+    agent_role?: string;
+    estimated_minutes?: number;
+    config?: Record<string, unknown>;
+  } | null;
+  growth: {
+    completed_sessions: number;
+    avg_score?: number | null;
+    first_score?: number | null;
+    latest_score?: number | null;
+    improvement?: number | null;
+    trend: string;
+  };
+  skills: {
+    strongest: string[];
+    weakest: string[];
+  };
+  recent_sessions: {
+    id: string;
+    title: string;
+    status: string;
+    mode: string;
+    ended_at?: string | null;
+    created_at?: string | null;
+  }[];
+};
+
 function snapshotTitle(snap: unknown): string {
   if (snap && typeof snap === "object" && snap !== null && "title" in snap) {
     const t = (snap as { title?: unknown }).title;
@@ -72,6 +129,217 @@ function assignmentCohortId(assignment: AssignmentItem): string | null {
   return null;
 }
 
+function scoreLabel(value?: number | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}` : "--";
+}
+
+function IndividualLearnerDashboard({
+  home,
+  fullName,
+  error,
+}: {
+  home: LearnerHome;
+  fullName?: string;
+  error: string | null;
+}) {
+  const next = home.next_scenario;
+  const simKind = scenarioConfigToUiKind(next?.config);
+  const scoreDelta = home.growth.improvement;
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-8">
+      {error ? <StatusBanner message={error} /> : null}
+
+      <section className="overflow-hidden rounded-lg border border-[var(--rule)] bg-[#101410] text-white shadow-[0_28px_80px_-50px_rgba(0,0,0,0.7)]">
+        <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] lg:p-10">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[#9be6ac]">Individual career gym</p>
+            <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">
+              {fullName ? `${fullName.split(" ")[0]}, today has a mission.` : "Today has a mission."}
+            </h1>
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-white/72">
+              {home.daily_mission.description}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              {next ? (
+                <StartSimulationButton
+                  scenarioId={next.id}
+                  kind={simKind}
+                  cohortId={null}
+                  className="rounded-lg bg-[#32a852] px-5 py-3 font-mono text-[10px] font-semibold uppercase text-white transition-colors hover:bg-[#2b9650]"
+                >
+                  Start mission
+                </StartSimulationButton>
+              ) : (
+                <Link href="/scenarios" className="rounded-lg bg-[#32a852] px-5 py-3 font-mono text-[10px] font-semibold uppercase text-white transition-colors hover:bg-[#2b9650]">
+                  Browse scenarios
+                </Link>
+              )}
+              <Link
+                href="/sessions"
+                className="rounded-lg border border-white/18 px-5 py-3 text-[13px] font-semibold text-white/82 transition-colors hover:bg-white/8"
+              >
+                Review reports
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/12 bg-white/[0.06] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/50">Current level</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{home.level.name}</h2>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 font-mono text-[10px] font-semibold text-[#101410]">
+                L{home.level.number}
+              </span>
+            </div>
+            <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/12">
+              <div className="h-full rounded-full bg-[#9be6ac]" style={{ width: `${home.level.progress}%` }} />
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-2xl font-semibold">{home.level.points}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Points</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">{home.streak.current}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Streak</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">{home.streak.weekly_completions}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">This week</p>
+              </div>
+            </div>
+            {home.level.required_missions.length > 0 ? (
+              <p className="mt-5 text-[12px] leading-6 text-white/58">{home.level.required_missions.join(" · ")}</p>
+            ) : (
+              <p className="mt-5 text-[12px] leading-6 text-white/58">You are at the top level. Keep your evidence sharp.</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Next scenario</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{next?.title ?? "Build your first recommendation"}</h2>
+              <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--muted)]">
+                {next?.description ?? "Complete one scored simulation so Squinia can personalize your next mission."}
+              </p>
+            </div>
+            {next ? (
+              <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                {next.difficulty?.toLowerCase() ?? "practice"}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <MetricTile label="Average score" value={scoreLabel(home.growth.avg_score)} detail={`${home.growth.completed_sessions} scored`} />
+            <MetricTile
+              label="Growth"
+              value={typeof scoreDelta === "number" ? `${scoreDelta >= 0 ? "+" : ""}${Math.round(scoreDelta)}` : "--"}
+              detail="First to latest"
+            />
+            <MetricTile label="Longest streak" value={`${home.streak.longest}`} detail="Personal best" />
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Streak map</p>
+          <div className="mt-5 grid grid-cols-7 gap-2">
+            {home.streak.history.map((day) => (
+              <div
+                key={day.date}
+                className={`aspect-square rounded-md border ${day.completed ? "border-[#32a852] bg-[#32a852]" : "border-[var(--rule)] bg-[var(--field)]"}`}
+                title={`${day.date}: ${day.completed ? "completed" : "rest"}`}
+              />
+            ))}
+          </div>
+          <p className="mt-4 text-[13px] leading-6 text-[var(--muted)]">
+            Consistency leaderboard comes later; for now this keeps the daily habit visible without punishing new learners.
+          </p>
+        </section>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Skill focus</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <SkillList title="Strengths" items={home.skills.strongest} empty="Strong skills appear after scored evaluations." />
+            <SkillList title="Next improvements" items={home.skills.weakest} empty="Weak spots appear after scored evaluations." />
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Recent reps</p>
+              <h2 className="mt-2 text-lg font-semibold">Practice history</h2>
+            </div>
+            <Link href="/sessions" className="text-[13px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline">
+              View all
+            </Link>
+          </div>
+          {home.recent_sessions.length === 0 ? (
+            <div className="mt-5">
+              <EmptyState title="No reps yet" message="Start a scored simulation to unlock your career gym metrics." action={{ href: "/scenarios", label: "Browse scenarios" }} />
+            </div>
+          ) : (
+            <ul className="mt-5 divide-y divide-[var(--rule)]">
+              {home.recent_sessions.map((row) => {
+                const kind = sessionModeToUiKind(row.mode);
+                return (
+                  <li key={row.id} className="flex items-center justify-between gap-3 py-4 first:pt-0">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[#111111]">{row.title}</p>
+                      <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">{row.status.toLowerCase()}</p>
+                    </div>
+                    <Link href={simulationReportHref(row.id, kind)} className="rounded-lg border border-[var(--rule-strong)] px-3 py-1.5 text-[12px] font-medium text-[var(--muted)] hover:bg-[var(--field)]">
+                      Report
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function MetricTile({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--rule)] bg-[var(--field)]/45 p-4">
+      <p className="text-2xl font-semibold text-[#111111]">{value}</p>
+      <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--faint)]">{label}</p>
+      <p className="mt-2 text-[12px] text-[var(--muted)]">{detail}</p>
+    </div>
+  );
+}
+
+function SkillList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return (
+    <div>
+      <h3 className="text-[14px] font-semibold text-[#111111]">{title}</h3>
+      {items.length === 0 ? (
+        <p className="mt-3 text-[13px] leading-6 text-[var(--muted)]">{empty}</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {items.map((item) => (
+            <li key={item} className="rounded-lg border border-[var(--rule)] bg-[var(--field)]/45 px-3 py-2 text-[13px] text-[var(--muted)]">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function DashboardClient() {
   const searchParams = useSearchParams();
   const cohortParam = searchParams.get("cohort");
@@ -83,6 +351,7 @@ export function DashboardClient() {
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [summary, setSummary] = useState<UserSummary | null>(null);
+  const [learnerHome, setLearnerHome] = useState<LearnerHome | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +364,22 @@ export function DashboardClient() {
     }
     setMe(meRes.data);
     const userId = meRes.data.user.id;
+    const activeMembership =
+      meRes.data.memberships.find((m) => m.tenant_id === meRes.data.default_tenant_id) ??
+      meRes.data.memberships[0];
+    if (activeMembership?.account_kind === "individual") {
+      const homeRes = await v1.get<LearnerHome>("me/learner-home");
+      setLearnerHome(homeRes.ok ? homeRes.data : null);
+      window.localStorage.removeItem("squinia:selectedCohortId");
+      setCohorts([]);
+      setAssignments([]);
+      setSessions([]);
+      setSummary(null);
+      if (!homeRes.ok) setError(homeRes.message);
+      setLoading(false);
+      return;
+    }
+    setLearnerHome(null);
     const cohortRes = await v1.get<{ cohorts: LearnerCohort[] }>("me/cohorts");
     const learnerCohorts = cohortRes.ok ? cohortRes.data.cohorts ?? [] : [];
     setCohorts(learnerCohorts);
@@ -111,7 +396,7 @@ export function DashboardClient() {
 
     const [asgRes, sessRes, sumRes] = await Promise.all([
       v1.get<ItemsData<AssignmentItem>>("assignments", { assigned_to_me: true, limit: 20, page: 1 }),
-      v1.get<ItemsData<SessionItem>>("sessions", { limit: 15, page: 1, ...(cohortId ? { cohort_id: cohortId } : {}) }),
+      v1.get<ItemsData<SessionItem>>("sessions", { limit: 15, page: 1, mine: true, ...(cohortId ? { cohort_id: cohortId } : {}) }),
       cohortId
         ? v1.get<{ summary: UserSummary }>(`analytics/me/cohorts/${cohortId}/summary`)
         : v1.get<{ summary: UserSummary }>(`analytics/users/${userId}/summary`),
@@ -158,6 +443,10 @@ export function DashboardClient() {
 
   const maxProgress = Math.max(...progressBars.map((p) => p.value), 1);
   const selectedCohort = cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null;
+
+  if (learnerHome) {
+    return <IndividualLearnerDashboard home={learnerHome} fullName={me?.user.full_name} error={error} />;
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-10">

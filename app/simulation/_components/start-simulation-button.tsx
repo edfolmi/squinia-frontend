@@ -48,8 +48,11 @@ export function StartSimulationButton({
           void (async () => {
             const mode = kind === "phone" ? "VOICE" : kind === "video" ? "VIDEO" : "TEXT";
             const selectedCohortId =
-              cohortId ??
-              (typeof window !== "undefined" ? window.localStorage.getItem("squinia:selectedCohortId") : null);
+              cohortId !== undefined
+                ? cohortId
+                : typeof window !== "undefined"
+                  ? window.localStorage.getItem("squinia:selectedCohortId")
+                  : null;
             const started = await startBackendSimulationSession({ scenarioId, mode, cohortId: selectedCohortId });
             setBusy(false);
             if (!started) return;

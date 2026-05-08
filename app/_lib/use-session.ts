@@ -19,6 +19,7 @@ export type SessionMembership = {
   tenant_name: string;
   tenant_slug: string;
   org_role: string;
+  account_kind?: string;
   joined_at: string;
   branding?: TenantBranding;
 };

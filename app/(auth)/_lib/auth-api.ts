@@ -150,6 +150,7 @@ export type AuthMeMembership = {
   tenant_name?: string;
   tenant_slug?: string;
   org_role?: string;
+  account_kind?: string;
   joined_at?: string;
   branding?: {
     logo_url?: string | null;
@@ -174,6 +175,7 @@ export async function authFetchMe(): Promise<ApiResult<AuthMeResponse>> {
 
 /** Matches bootstrap tenant name from ``ensure_personal_workspace`` (``"{name}'s workspace"``). */
 function isPersonalWorkspaceTenant(m: AuthMeMembership | undefined): boolean {
+  if (m?.account_kind === "personal_bootstrap") return true;
   const n = m?.tenant_name;
   return typeof n === "string" && /'s workspace$/u.test(n);
 }
@@ -203,10 +205,11 @@ export function postAuthDestination(me: AuthMeResponse | null): string {
   }
 
   if (!completed) {
-    return isOrg ? "/onboarding?role=admin" : "/onboarding";
+    return "/onboarding";
   }
 
-  if (isOrg) {
+  const active = ms.find((m) => m.tenant_id === me.default_tenant_id) ?? ms[0];
+  if (isOrg && active?.account_kind !== "individual") {
     return "/org/cohorts";
   }
   return "/dashboard";

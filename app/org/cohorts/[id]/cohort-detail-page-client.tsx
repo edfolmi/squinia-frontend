@@ -6,7 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
-import { CohortDetailTabs, type CohortMemberVm, type ProgressRowVm } from "./cohort-detail-tabs";
+import {
+  CohortDetailTabs,
+  type CohortInterventionVm,
+  type CohortMemberVm,
+  type ProgressRowVm,
+  type SkillMapVm,
+} from "./cohort-detail-tabs";
 
 type OrgSkillProfile = { clarity: number; structure: number; tone: number; policy: number; presence: number };
 
@@ -32,6 +38,29 @@ type MemberItem = {
 
 type ProgressApi = {
   members: Array<{ user_id: string; scores: Record<string, number>; completion_rate: number }>;
+};
+
+type OverviewApi = {
+  avg_score?: number | null;
+  completion_rate?: number;
+  ready_learners?: number;
+  at_risk_learners?: number;
+  active_learners_this_week?: number;
+  inactive_learners?: number;
+  avg_attempts_per_learner?: number;
+  avg_improvement?: number | null;
+};
+
+type InterventionApi = {
+  user_id: string;
+  full_name?: string | null;
+  email?: string | null;
+  risk_level: string;
+  reasons: string[];
+  latest_score?: number | null;
+  last_activity_at?: string | null;
+  incomplete_sessions: number;
+  weak_criteria: string[];
 };
 
 function programWeeks(c: CohortApi): number {
@@ -77,11 +106,12 @@ function skillAverageFromSkillMap(skillMap: { criteria?: string[]; members?: Rec
   const out: Partial<OrgSkillProfile> = {};
   for (let i = 0; i < Math.min(dims.length, criteria.length); i++) {
     const d = dims[i];
+    const criterion = criteria[i];
     let sum = 0;
     let n = 0;
     for (const row of members) {
-      if (row && typeof row === "object" && d in row) {
-        const v = (row as Record<string, unknown>)[d];
+      if (row && typeof row === "object" && criterion in row) {
+        const v = (row as Record<string, unknown>)[criterion];
         if (typeof v === "number") {
           sum += v;
           n++;
@@ -111,6 +141,9 @@ export function CohortDetailPageClient() {
   const [members, setMembers] = useState<CohortMemberVm[]>([]);
   const [progress, setProgress] = useState<ProgressRowVm[]>([]);
   const [skillAverage, setSkillAverage] = useState<OrgSkillProfile | null>(null);
+  const [skillMap, setSkillMap] = useState<SkillMapVm | null>(null);
+  const [interventions, setInterventions] = useState<CohortInterventionVm[]>([]);
+  const [overview, setOverview] = useState<OverviewApi | null>(null);
   const [avgScore, setAvgScore] = useState<number | null>(null);
   const [completion, setCompletion] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
@@ -123,12 +156,13 @@ export function CohortDetailPageClient() {
     setLoading(true);
     setError(null);
 
-    const [cRes, mRes, pRes, oRes, sRes] = await Promise.all([
+    const [cRes, mRes, pRes, oRes, sRes, iRes] = await Promise.all([
       v1.get<{ cohort: CohortApi }>(`cohorts/${cohortId}`),
       v1.get<ItemsData<MemberItem>>(`cohorts/${cohortId}/members`, { limit: 200, page: 1 }),
       v1.get<{ progress: ProgressApi }>(`cohorts/${cohortId}/progress`),
-      v1.get<{ overview: { avg_score?: number | null; completion_rate?: number } }>(`analytics/cohorts/${cohortId}/overview`),
-      v1.get<{ skill_map: { criteria?: string[]; members?: Record<string, unknown>[] } }>(`analytics/cohorts/${cohortId}/skill-map`),
+      v1.get<{ overview: OverviewApi }>(`analytics/cohorts/${cohortId}/overview`),
+      v1.get<{ skill_map: SkillMapVm }>(`analytics/cohorts/${cohortId}/skill-map`),
+      v1.get<{ interventions: InterventionApi[] }>(`analytics/cohorts/${cohortId}/interventions`),
     ]);
 
     if (!cRes.ok) {
@@ -151,15 +185,37 @@ export function CohortDetailPageClient() {
       const o = oRes.data.overview;
       setAvgScore(o.avg_score != null ? Math.round(o.avg_score) : null);
       setCompletion(o.completion_rate != null ? Math.round(o.completion_rate * 100) : null);
+      setOverview(o);
     } else {
       setAvgScore(null);
       setCompletion(null);
+      setOverview(null);
     }
 
     if (sRes.ok) {
       setSkillAverage(skillAverageFromSkillMap(sRes.data.skill_map));
+      setSkillMap(sRes.data.skill_map);
     } else {
       setSkillAverage(null);
+      setSkillMap(null);
+    }
+
+    if (iRes.ok) {
+      setInterventions(
+        (iRes.data.interventions ?? []).map((row) => ({
+          userId: row.user_id,
+          name: row.full_name || row.email || row.user_id,
+          email: row.email || row.user_id,
+          riskLevel: row.risk_level,
+          reasons: row.reasons ?? [],
+          latestScore: row.latest_score ?? null,
+          lastActivityAt: row.last_activity_at ?? null,
+          incompleteSessions: row.incomplete_sessions,
+          weakCriteria: row.weak_criteria ?? [],
+        })),
+      );
+    } else {
+      setInterventions([]);
     }
 
     setLoading(false);
@@ -291,7 +347,16 @@ export function CohortDetailPageClient() {
         </div>
       </div>
 
-      <CohortDetailTabs cohortId={cohortId} members={members} progress={progress} skillAverage={skillAverage} onChanged={load} />
+      <CohortDetailTabs
+        cohortId={cohortId}
+        members={members}
+        progress={progress}
+        skillAverage={skillAverage}
+        skillMap={skillMap}
+        interventions={interventions}
+        overview={overview}
+        onChanged={load}
+      />
     </div>
   );
 }

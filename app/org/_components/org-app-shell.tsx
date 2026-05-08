@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+import { TenantSwitcher } from "@/app/_components/tenant-switcher";
 import { brandingStyle } from "@/app/_lib/tenant-branding";
 import { activeTenantBranding, defaultMembership, isOrgOperatorRole, useSession } from "@/app/_lib/use-session";
 import { StudentProfileMenu } from "@/app/(student)/_components/student-profile-menu";
@@ -56,7 +57,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 
 export function OrgAppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { session, loading } = useSession();
+  const { session, loading, reload } = useSession();
   const membership = defaultMembership(session);
   const branding = activeTenantBranding(session);
   const allowed = isOrgOperatorRole(session?.default_org_role);
@@ -106,6 +107,7 @@ export function OrgAppShell({ children }: { children: React.ReactNode }) {
             {membership?.tenant_name ?? "Operator dashboard"}
           </p>
           <div className="flex shrink-0 items-center gap-2">
+            <TenantSwitcher session={session} onSwitched={reload} />
             <StudentProfileMenu />
           </div>
         </header>

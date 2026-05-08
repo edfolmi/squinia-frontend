@@ -6,7 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AuthFormMessage } from "../_components/auth-form-message";
-import { authAcceptInvite, authFetchMe, postAuthDestination, setSessionFromLoginData } from "../_lib/auth-api";
+import {
+  authAcceptInvite,
+  authFetchMe,
+  inviteDestination,
+  postAuthDestination,
+  setSessionFromLoginData,
+} from "../_lib/auth-api";
 
 type Props = {
   initialToken: string;
@@ -48,6 +54,12 @@ export function AcceptInviteForm({ initialToken, orgName }: Props) {
       });
       if (res.ok) {
         setSessionFromLoginData(res.data);
+        const inviteDest = inviteDestination(res.data.invite_context);
+        if (inviteDest) {
+          router.push(inviteDest);
+          router.refresh();
+          return;
+        }
         const me = await authFetchMe();
         const dest = postAuthDestination(me.ok ? me.data : null);
         router.push(dest);

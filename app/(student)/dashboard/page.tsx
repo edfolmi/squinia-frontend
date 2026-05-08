@@ -1,5 +1,11 @@
+import { Suspense } from "react";
+
 import { DashboardClient } from "./dashboard-client";
 
 export default function DashboardPage() {
-  return <DashboardClient />;
+  return (
+    <Suspense fallback={null}>
+      <DashboardClient />
+    </Suspense>
+  );
 }

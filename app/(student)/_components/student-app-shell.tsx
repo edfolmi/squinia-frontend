@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
+import { TenantSwitcher } from "@/app/_components/tenant-switcher";
 import { brandingStyle } from "@/app/_lib/tenant-branding";
 import { activeTenantBranding, defaultMembership, useSession } from "@/app/_lib/use-session";
 
@@ -40,7 +41,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export function StudentAppShell({ children }: { children: React.ReactNode }) {
-  const { session } = useSession();
+  const { session, reload } = useSession();
   const membership = defaultMembership(session);
   const branding = activeTenantBranding(session);
 
@@ -72,6 +73,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
             {membership?.tenant_name ?? "Learning workspace"}
           </p>
           <div className="flex shrink-0 items-center gap-2">
+            <TenantSwitcher session={session} onSwitched={reload} />
             <StudentProfileMenu />
           </div>
         </header>

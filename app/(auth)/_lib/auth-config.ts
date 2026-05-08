@@ -39,5 +39,6 @@ export const AUTH_PATHS = {
   forgotPassword: `${API_V1}/auth/forgot-password`,
   resetPassword: `${API_V1}/auth/reset-password`,
   acceptInvite: `${API_V1}/auth/accept-invite`,
+  switchTenant: `${API_V1}/auth/switch-tenant`,
   onboarding: `${API_V1}/auth/onboarding`,
 } as const;

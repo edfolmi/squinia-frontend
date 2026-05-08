@@ -118,6 +118,27 @@ export type VerifyEmailBody = { token: string };
 export type ForgotPasswordBody = { email: string };
 export type ResetPasswordBody = { token: string; password: string };
 export type AcceptInviteBody = { token: string; password?: string; fullName?: string };
+export type InviteContext = {
+  invite_scope?: string | null;
+  tenant_id?: string | null;
+  role?: string | null;
+  cohort_id?: string | null;
+};
+
+export type AuthTokenBundle = {
+  access_token: string;
+  refresh_token: string;
+  token_type?: string;
+};
+
+export type AuthSessionPayload = {
+  user?: unknown;
+  tokens?: AuthTokenBundle;
+};
+
+export type AcceptInviteResponse = AuthSessionPayload & {
+  invite_context?: InviteContext | null;
+};
 
 export function authApiConfigured(): boolean {
   return Boolean(getApiBase());
@@ -215,12 +236,30 @@ export async function authResetPassword(body: ResetPasswordBody): Promise<ApiRes
   return postJson(AUTH_PATHS.resetPassword, body);
 }
 
-export async function authAcceptInvite(body: AcceptInviteBody): Promise<ApiResult<unknown>> {
+export function inviteDestination(ctx: InviteContext | null | undefined): string | null {
+  if (!ctx) return null;
+  const role = ctx.role ?? "";
+  const scope = ctx.invite_scope ?? "";
+  if (role === "STUDENT" || scope === "COHORT_STUDENT") {
+    return ctx.cohort_id ? `/dashboard?cohort=${encodeURIComponent(ctx.cohort_id)}` : "/dashboard";
+  }
+  return "/org/cohorts";
+}
+
+export async function authAcceptInvite(body: AcceptInviteBody): Promise<ApiResult<AcceptInviteResponse>> {
   return postJson(AUTH_PATHS.acceptInvite, {
     token: body.token,
     password: body.password ?? null,
     full_name: body.fullName?.trim() ? body.fullName.trim() : null,
   });
+}
+
+export async function authSwitchTenant(tenantId: string): Promise<ApiResult<AuthSessionPayload>> {
+  const res = await postJson<AuthSessionPayload>(AUTH_PATHS.switchTenant, { tenant_id: tenantId }, { bearer: true });
+  if (res.ok) {
+    setSessionFromLoginData(res.data);
+  }
+  return res;
 }
 
 export type OnboardingBody = {

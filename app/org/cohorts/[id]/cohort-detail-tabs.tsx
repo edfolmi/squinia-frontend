@@ -27,15 +27,44 @@ export type ProgressRowVm = {
   completed: boolean;
 };
 
+export type SkillMapVm = {
+  criteria: string[];
+  members: Array<Record<string, unknown> & { user_id: string; full_name?: string | null; email?: string | null }>;
+};
+
+export type CohortInterventionVm = {
+  userId: string;
+  name: string;
+  email: string;
+  riskLevel: string;
+  reasons: string[];
+  latestScore: number | null;
+  lastActivityAt: string | null;
+  incompleteSessions: number;
+  weakCriteria: string[];
+};
+
+type CohortOverviewVm = {
+  ready_learners?: number;
+  at_risk_learners?: number;
+  active_learners_this_week?: number;
+  inactive_learners?: number;
+  avg_attempts_per_learner?: number;
+  avg_improvement?: number | null;
+};
+
 type Props = {
   cohortId: string;
   members: CohortMemberVm[];
   progress: ProgressRowVm[];
   skillAverage: OrgSkillProfile | null;
+  skillMap: SkillMapVm | null;
+  interventions: CohortInterventionVm[];
+  overview: CohortOverviewVm | null;
   onChanged: () => void;
 };
 
-export function CohortDetailTabs({ cohortId, members, progress, skillAverage, onChanged }: Props) {
+export function CohortDetailTabs({ cohortId, members, progress, skillAverage, skillMap, interventions, overview, onChanged }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Members");
 
   const progressRows = useMemo(() => {
@@ -109,39 +138,70 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, on
       ) : null}
 
       {tab === "Progress" ? (
-        <section className="overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--surface)]">
-          <div className="border-b border-[var(--rule)] bg-[var(--field)]/60 px-4 py-3 sm:px-5">
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Progress by student</h2>
-            <p className="mt-1 text-[13px] text-[var(--muted)]">Aggregates from the cohort progress API.</p>
+        <section className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricBox label="Ready" value={`${overview?.ready_learners ?? 0}`} detail="At or above threshold" />
+            <MetricBox label="At risk" value={`${overview?.at_risk_learners ?? 0}`} detail="Needs attention" />
+            <MetricBox label="Active" value={`${overview?.active_learners_this_week ?? 0}`} detail="This week" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-[var(--rule)] font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
-                  <th className="px-4 py-3 font-medium">Student</th>
-                  <th className="px-4 py-3 font-medium">Scenario</th>
-                  <th className="px-4 py-3 font-medium">Attempts</th>
-                  <th className="px-4 py-3 font-medium">Best</th>
-                  <th className="px-4 py-3 font-medium">Done</th>
-                </tr>
-              </thead>
-              <tbody>
-                {progress.map((p) => {
-                  const mem = members.find((m) => m.id === p.memberId);
-                  return (
-                    <tr key={`${p.memberId}-${p.scenarioTitle}`} className="border-b border-[var(--rule)] last:border-0">
-                      <td className="px-4 py-3 font-medium text-[#111111]">{mem?.name ?? p.memberId}</td>
-                      <td className="px-4 py-3 text-[var(--muted)]">{p.scenarioTitle}</td>
-                      <td className="px-4 py-3 font-mono tabular-nums">{p.attempts}</td>
-                      <td className="px-4 py-3 font-mono tabular-nums text-[#166534]">
-                        {p.bestScore != null ? `${p.bestScore}%` : "-"}
-                      </td>
-                      <td className="px-4 py-3">{p.completed ? "Yes" : "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          <div className="overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--surface)]">
+            <div className="border-b border-[var(--rule)] bg-[var(--field)]/60 px-4 py-3 sm:px-5">
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Progress by student</h2>
+              <p className="mt-1 text-[13px] text-[var(--muted)]">Aggregates from the cohort progress API.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-[13px]">
+                <thead>
+                  <tr className="border-b border-[var(--rule)] font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
+                    <th className="px-4 py-3 font-medium">Student</th>
+                    <th className="px-4 py-3 font-medium">Scenario</th>
+                    <th className="px-4 py-3 font-medium">Attempts</th>
+                    <th className="px-4 py-3 font-medium">Best</th>
+                    <th className="px-4 py-3 font-medium">Done</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {progress.map((p) => {
+                    const mem = members.find((m) => m.id === p.memberId);
+                    return (
+                      <tr key={`${p.memberId}-${p.scenarioTitle}`} className="border-b border-[var(--rule)] last:border-0">
+                        <td className="px-4 py-3 font-medium text-[#111111]">{mem?.name ?? p.memberId}</td>
+                        <td className="px-4 py-3 text-[var(--muted)]">{p.scenarioTitle}</td>
+                        <td className="px-4 py-3 font-mono tabular-nums">{p.attempts}</td>
+                        <td className="px-4 py-3 font-mono tabular-nums text-[#166534]">
+                          {p.bestScore != null ? `${p.bestScore}%` : "-"}
+                        </td>
+                        <td className="px-4 py-3">{p.completed ? "Yes" : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Recommended interventions</h2>
+            {interventions.length ? (
+              <ul className="mt-4 divide-y divide-[var(--rule)]">
+                {interventions.map((item) => (
+                  <li key={item.userId} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-[#111111]">{item.name}</p>
+                        <p className="mt-1 text-[12px] text-[var(--muted)]">{item.reasons.join(" / ")}</p>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${item.riskLevel === "high" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                        {item.riskLevel}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-[14px] text-[var(--muted)]">No recommended interventions for this cohort.</p>
+            )}
           </div>
         </section>
       ) : null}
@@ -164,7 +224,9 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, on
               <p className="text-[14px] text-[var(--muted)]">Not enough scored activity to chart this cohort.</p>
             )}
             <div className="w-full max-w-md space-y-4">
-              <h3 className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Per student</h3>
+              <h3 className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Criteria averages</h3>
+              {skillMap?.criteria.length ? <CriteriaAverages skillMap={skillMap} /> : null}
+              <h3 className="pt-3 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">Per student</h3>
               <ul className="space-y-3">
                 {progressRows.map(({ member, rows }) => (
                   <li
@@ -189,6 +251,46 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, on
         </section>
       ) : null}
     </div>
+  );
+}
+
+function MetricBox({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#111111]">{value}</p>
+      <p className="mt-1 text-[12px] text-[var(--muted)]">{detail}</p>
+    </div>
+  );
+}
+
+function CriteriaAverages({ skillMap }: { skillMap: SkillMapVm }) {
+  const rows = skillMap.criteria
+    .map((criterion) => {
+      const values = skillMap.members
+        .map((member) => member[criterion])
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      const avg = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+      return { criterion, avg };
+    })
+    .filter((row) => row.avg != null)
+    .sort((a, b) => (a.avg ?? 0) - (b.avg ?? 0))
+    .slice(0, 8);
+
+  return (
+    <ul className="space-y-2">
+      {rows.map((row) => (
+        <li key={row.criterion} className="grid grid-cols-[1fr_48px] items-center gap-3 text-[12px]">
+          <div>
+            <p className="truncate font-medium text-[#111111]">{row.criterion}</p>
+            <div className="mt-1 h-1.5 rounded-full bg-[var(--field)]">
+              <div className="h-1.5 rounded-full bg-[var(--accent)]" style={{ width: `${row.avg ?? 0}%` }} />
+            </div>
+          </div>
+          <span className="text-right font-mono tabular-nums text-[var(--muted)]">{row.avg}%</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

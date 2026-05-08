@@ -6,23 +6,39 @@ import { useEffect, useMemo, useState } from "react";
 
 import { v1 } from "@/app/_lib/v1-client";
 
-import { SkillRadarChart } from "../_components/skill-radar-chart";
-import { ORG_MEMBER_SKILLS, ORG_SKILL_TARGETS, getMemberById } from "../_lib/org-mock-data";
-import type { OrgSkillProfile } from "../_lib/org-mock-data";
-
-type CohortSummary = { id: string; name: string; avg: number | null; completion: number };
+type CohortSummary = {
+  id: string;
+  name: string;
+  avg: number | null;
+  completion: number;
+  ready?: number;
+  atRisk?: number;
+  active?: number;
+  members?: number;
+};
 
 export type MemberLite = { id: string; name: string; email: string; cohortId: string };
 
-type Props = {
-  cohortSummaries: CohortSummary[];
-  /** When empty, per-student list is hidden. */
-  members?: MemberLite[];
+export type SkillMap = {
+  criteria: string[];
+  members: Array<Record<string, unknown> & { user_id: string; full_name?: string | null; email?: string | null }>;
 };
 
-type UserSummary = { total_sessions: number; avg_score: number | null; trend: string };
+type Props = {
+  cohortSummaries: CohortSummary[];
+  members?: MemberLite[];
+  skillMaps?: Record<string, SkillMap>;
+};
 
-export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
+type UserSummary = {
+  total_sessions: number;
+  avg_score: number | null;
+  trend: string;
+  weakest_criteria?: string[];
+  strongest_criteria?: string[];
+};
+
+export function AnalyticsDashboard({ cohortSummaries, members = [], skillMaps = {} }: Props) {
   const search = useSearchParams();
   const cohortFilter = search.get("cohort");
   const memberId = search.get("member");
@@ -32,14 +48,12 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
     [cohortFilter, cohortSummaries],
   );
 
-  const member = memberId ? members.find((m) => m.id === memberId) ?? getMemberById(memberId) : undefined;
-  const mockProfile = memberId ? ORG_MEMBER_SKILLS[memberId] : null;
-
+  const member = memberId ? members.find((m) => m.id === memberId) : undefined;
   const [liveSummary, setLiveSummary] = useState<UserSummary | null>(null);
 
   useEffect(() => {
     if (!memberId) {
-      setLiveSummary(null);
+      void Promise.resolve().then(() => setLiveSummary(null));
       return;
     }
     let cancelled = false;
@@ -59,10 +73,23 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
     return members.filter((m) => m.cohortId === cohortFilter);
   }, [members, cohortFilter]);
 
-  const profile: OrgSkillProfile | null = mockProfile;
+  const memberSkillRows = useMemo(() => {
+    if (!memberId) return [];
+    const maps = cohortFilter && skillMaps[cohortFilter] ? [skillMaps[cohortFilter]] : Object.values(skillMaps);
+    const rows: Array<{ criterion: string; score: number }> = [];
+    for (const map of maps) {
+      const row = map.members.find((m) => m.user_id === memberId);
+      if (!row) continue;
+      for (const criterion of map.criteria) {
+        const score = row[criterion];
+        if (typeof score === "number" && Number.isFinite(score)) rows.push({ criterion, score });
+      }
+    }
+    return rows.sort((a, b) => a.score - b.score);
+  }, [cohortFilter, memberId, skillMaps]);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       {(cohortFilter || memberId) && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--rule)] bg-[var(--field)]/50 px-4 py-3 text-[13px] text-[var(--muted)]">
           <span>
@@ -70,12 +97,12 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
             {cohort ? <strong className="text-[#111111]">{cohort.name}</strong> : cohortFilter ? cohortFilter : "all cohorts"}
             {member ? (
               <>
-                {" · "}
+                {" / "}
                 <strong className="text-[#111111]">{member.name}</strong>
               </>
             ) : memberId ? (
               <>
-                {" · "}
+                {" / "}
                 <strong className="font-mono text-[#111111]">{memberId}</strong>
               </>
             ) : null}
@@ -87,49 +114,30 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
       )}
 
       <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Per-student drill-down</h2>
+        <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Learner drill-down</h2>
         <p className="mt-2 text-[14px] text-[var(--muted)]">
-          Select a member to view their session history, average scores, and skill radar.
+          Select a learner to inspect session volume, score trend, strongest skills, and weakest rubric criteria.
         </p>
 
         {memberId && liveSummary ? (
-          <div className="mt-6 rounded-xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-3 text-[14px] text-[var(--muted)]">
-            <p>
-              <strong className="text-[#111111]">{liveSummary.total_sessions}</strong> sessions · avg score{" "}
-              <strong className="text-[#111111]">
-                {liveSummary.avg_score != null ? Math.round(liveSummary.avg_score) : "—"}
-              </strong>{" "}
-              · trend <strong className="text-[#111111]">{liveSummary.trend}</strong>
-            </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <SummaryTile label="Sessions" value={`${liveSummary.total_sessions}`} />
+            <SummaryTile label="Avg score" value={liveSummary.avg_score != null ? `${Math.round(liveSummary.avg_score)}%` : "-"} />
+            <SummaryTile label="Trend" value={liveSummary.trend} />
           </div>
         ) : null}
 
-        {memberId && profile && Object.values(profile).some((v) => v > 0) ? (
-          <div className="mt-8 flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-center">
-            <SkillRadarChart profile={profile} target={ORG_SKILL_TARGETS} size={260} caption={member?.name} />
-            <div className="max-w-md space-y-3 text-[14px] text-[var(--muted)]">
-              <p>Skill radar based on rubric evaluation dimensions.</p>
-              {member && "cohortId" in member && member.cohortId ? (
-                <p>
-                  Cohort:{" "}
-                  <Link
-                    href={`/org/cohorts/${member.cohortId}`}
-                    className="font-medium text-[#111111] underline underline-offset-2"
-                  >
-                    {cohortSummaries.find((c) => c.id === member.cohortId)?.name ?? member.cohortId}
-                  </Link>
-                </p>
-              ) : null}
-            </div>
+        {memberId ? (
+          <div className="mt-6 grid gap-5 lg:grid-cols-2">
+            <SkillList title="Weakest criteria" rows={memberSkillRows.slice(0, 5)} empty="No weak criteria yet." />
+            <SkillList title="Strongest criteria" rows={[...memberSkillRows].reverse().slice(0, 5)} empty="No strengths yet." />
           </div>
-        ) : memberId ? (
-          <p className="mt-6 text-[14px] text-[var(--muted)]">No skill profile available for this learner yet.</p>
         ) : null}
 
         {cohortMembers.length ? (
           <ul className="mt-8 divide-y divide-[var(--rule)] rounded-xl border border-[var(--rule)]">
             {cohortMembers.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <li key={`${m.cohortId}-${m.id}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <p className="font-medium text-[#111111]">{m.name}</p>
                   <p className="text-[12px] text-[var(--faint)]">{m.email}</p>
@@ -145,10 +153,44 @@ export function AnalyticsDashboard({ cohortSummaries, members = [] }: Props) {
           </ul>
         ) : (
           <p className="mt-6 text-[14px] text-[var(--muted)]">
-            Member roster for analytics drill-down loads when members are supplied (e.g. from cohort pages).
+            Invite learners to cohorts and complete scored simulations to unlock learner drill-down.
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-3">
+      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-[#111111]">{value}</p>
+    </div>
+  );
+}
+
+function SkillList({ title, rows, empty }: { title: string; rows: Array<{ criterion: string; score: number }>; empty: string }) {
+  return (
+    <div>
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">{title}</h3>
+      {rows.length ? (
+        <ul className="mt-3 space-y-2">
+          {rows.map((row) => (
+            <li key={`${title}-${row.criterion}`} className="grid grid-cols-[1fr_52px] items-center gap-3 text-[13px]">
+              <div>
+                <p className="truncate font-medium text-[#111111]">{row.criterion}</p>
+                <div className="mt-1 h-1.5 rounded-full bg-[var(--field)]">
+                  <div className="h-1.5 rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, Math.max(0, row.score))}%` }} />
+                </div>
+              </div>
+              <span className="text-right font-mono tabular-nums text-[var(--muted)]">{Math.round(row.score)}%</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-[13px] text-[var(--muted)]">{empty}</p>
+      )}
     </div>
   );
 }

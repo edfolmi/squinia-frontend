@@ -10,13 +10,14 @@ import { startBackendSimulationSession } from "../_lib/backend-simulation";
 type Props = {
   scenarioId: string;
   kind: SimulationKind;
+  cohortId?: string | null;
   className?: string;
   children: React.ReactNode;
   disabled?: boolean;
   title?: string;
 };
 
-const useBackendSessions = () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1";
+const backendSessionsEnabled = () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1";
 
 /**
  * Navigates to a simulation attempt. With `NEXT_PUBLIC_USE_BACKEND_SESSIONS=1`, creates
@@ -25,6 +26,7 @@ const useBackendSessions = () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS ==
 export function StartSimulationButton({
   scenarioId,
   kind,
+  cohortId,
   className,
   children,
   disabled,
@@ -41,11 +43,14 @@ export function StartSimulationButton({
       title={title}
       onClick={() => {
         if (disabled || busy) return;
-        if (useBackendSessions()) {
+        if (backendSessionsEnabled()) {
           setBusy(true);
           void (async () => {
             const mode = kind === "phone" ? "VOICE" : kind === "video" ? "VIDEO" : "TEXT";
-            const started = await startBackendSimulationSession({ scenarioId, mode });
+            const selectedCohortId =
+              cohortId ??
+              (typeof window !== "undefined" ? window.localStorage.getItem("squinia:selectedCohortId") : null);
+            const started = await startBackendSimulationSession({ scenarioId, mode, cohortId: selectedCohortId });
             setBusy(false);
             if (!started) return;
             router.push(buildSimulationPath(started.session_id, kind));

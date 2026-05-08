@@ -32,6 +32,10 @@ export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
         assigned_to: cohortId,
         type: "REFLECTION",
         instructions: `Scenario: ${scenarioId}`,
+        content: {
+          cohort_id: cohortId,
+          scenario_id: scenarioId,
+        },
         due_at: new Date(due).toISOString(),
       });
       if (!res.ok) {

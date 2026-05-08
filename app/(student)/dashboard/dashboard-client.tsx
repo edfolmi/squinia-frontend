@@ -64,12 +64,36 @@ type LearnerHome = {
   };
   level: {
     number: number;
+    current_number?: number;
     name: string;
     points: number;
     progress: number;
+    mastery_score?: number;
+    highest_earned?: number;
     next_level?: { number: number; name: string } | null;
     required_missions: string[];
   };
+  mastery?: {
+    highest_level: number;
+    current_level: number;
+    current_mastery_score: number;
+    completed_eligible_sessions: number;
+    effective_sessions: number;
+    unique_scenarios: number;
+    advanced_sessions: number;
+    skill_mastery: Record<string, { label: string; score: number; attempts: number }>;
+    difficulty_mix: Record<string, number>;
+    scenario_diversity: { repeat_limited?: boolean };
+    level_chart: {
+      number: number;
+      name: string;
+      earned: boolean;
+      current: boolean;
+      requirements: string[];
+    }[];
+    next_level?: { number: number; name: string; requirements: string[] } | null;
+    latest_level_event?: { id: string; to_level: number; title: string; badge_key: string; created_at?: string | null } | null;
+  } | null;
   streak: {
     current: number;
     longest: number;
@@ -145,10 +169,18 @@ function IndividualLearnerDashboard({
   const next = home.next_scenario;
   const simKind = scenarioConfigToUiKind(next?.config);
   const scoreDelta = home.growth.improvement;
+  const mastery = home.mastery;
+  const masteryScore = mastery?.current_mastery_score ?? home.level.mastery_score ?? 0;
+  const latestEvent = mastery?.latest_level_event;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       {error ? <StatusBanner message={error} /> : null}
+      {latestEvent ? (
+        <div className="rounded-lg border border-[#b8e8c4] bg-[#f1fbf3] px-4 py-3 text-[14px] text-[#1f6f3a]">
+          {latestEvent.title}. Your new badge is ready in your Squinia identity history.
+        </div>
+      ) : null}
 
       <section className="overflow-hidden rounded-lg border border-[var(--rule)] bg-[#101410] text-white shadow-[0_28px_80px_-50px_rgba(0,0,0,0.7)]">
         <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] lg:p-10">
@@ -191,7 +223,7 @@ function IndividualLearnerDashboard({
                 <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{home.level.name}</h2>
               </div>
               <span className="rounded-full bg-white px-3 py-1 font-mono text-[10px] font-semibold text-[#101410]">
-                L{home.level.number}
+                L{home.level.highest_earned ?? home.level.number}
               </span>
             </div>
             <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/12">
@@ -199,16 +231,16 @@ function IndividualLearnerDashboard({
             </div>
             <div className="mt-5 grid grid-cols-3 gap-3">
               <div>
-                <p className="text-2xl font-semibold">{home.level.points}</p>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Points</p>
+                <p className="text-2xl font-semibold">{Math.round(masteryScore)}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Mastery</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold">{home.streak.current}</p>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Streak</p>
+                <p className="text-2xl font-semibold">{mastery?.completed_eligible_sessions ?? home.growth.completed_sessions}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Eligible reps</p>
               </div>
               <div>
-                <p className="text-2xl font-semibold">{home.streak.weekly_completions}</p>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">This week</p>
+                <p className="text-2xl font-semibold">{mastery?.unique_scenarios ?? 0}</p>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-white/48">Scenarios</p>
               </div>
             </div>
             {home.level.required_missions.length > 0 ? (
@@ -243,7 +275,11 @@ function IndividualLearnerDashboard({
               value={typeof scoreDelta === "number" ? `${scoreDelta >= 0 ? "+" : ""}${Math.round(scoreDelta)}` : "--"}
               detail="First to latest"
             />
-            <MetricTile label="Longest streak" value={`${home.streak.longest}`} detail="Personal best" />
+            <MetricTile
+              label="Effective reps"
+              value={`${Math.round(mastery?.effective_sessions ?? 0)}`}
+              detail={mastery?.scenario_diversity.repeat_limited ? "Repeat limits applied" : "Quality weighted"}
+            />
           </div>
         </section>
 
@@ -261,6 +297,18 @@ function IndividualLearnerDashboard({
           <p className="mt-4 text-[13px] leading-6 text-[var(--muted)]">
             Consistency leaderboard comes later; for now this keeps the daily habit visible without punishing new learners.
           </p>
+        </section>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Skill gaps</p>
+          <SkillGapBars mastery={mastery?.skill_mastery ?? {}} />
+        </section>
+
+        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Level chart</p>
+          <LevelChart levels={mastery?.level_chart ?? []} />
         </section>
       </div>
 
@@ -307,6 +355,78 @@ function IndividualLearnerDashboard({
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+function SkillGapBars({ mastery }: { mastery: Record<string, { label: string; score: number; attempts: number }> }) {
+  const rows = Object.entries(mastery)
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 6);
+
+  if (rows.length === 0) {
+    return (
+      <p className="mt-4 text-[13px] leading-6 text-[var(--muted)]">
+        Complete scored simulations to reveal the rubric gaps that control level promotion.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      {rows.map((row) => (
+        <div key={row.key}>
+          <div className="flex items-center justify-between gap-3 text-[13px]">
+            <span className="font-medium text-[#111111]">{row.label}</span>
+            <span className="font-mono text-[10px] text-[var(--faint)]">{Math.round(row.score)}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--field)]">
+            <div className="h-full rounded-full bg-[#32a852]" style={{ width: `${Math.max(4, Math.min(100, row.score))}%` }} />
+          </div>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">
+            {row.attempts} scored rubric evidence point{row.attempts === 1 ? "" : "s"}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LevelChart({ levels }: { levels: NonNullable<LearnerHome["mastery"]>["level_chart"] }) {
+  if (levels.length === 0) {
+    return (
+      <p className="mt-4 text-[13px] leading-6 text-[var(--muted)]">
+        Your level chart unlocks after your first scored progression-eligible simulation.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-3">
+      {levels.map((level) => (
+        <div
+          key={level.number}
+          className={`rounded-lg border px-3 py-3 ${level.earned ? "border-[#b8e8c4] bg-[#f3fbf5]" : "border-[var(--rule)] bg-[var(--field)]/35"}`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-semibold text-[#111111]">
+                Level {level.number}: {level.name}
+              </p>
+              <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--faint)]">
+                {level.earned ? "Earned" : level.current ? "Current target" : "Locked"}
+              </p>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 font-mono text-[9px] uppercase ${level.earned ? "bg-[#32a852] text-white" : "bg-white text-[var(--muted)]"}`}>
+              L{level.number}
+            </span>
+          </div>
+          {!level.earned && level.requirements.length > 0 ? (
+            <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">{level.requirements.slice(0, 2).join(" / ")}</p>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }

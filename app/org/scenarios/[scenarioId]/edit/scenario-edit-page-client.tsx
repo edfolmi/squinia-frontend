@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { scenarioConfigToUiKind, type UiSimulationKind } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
+import type { PersonaGender } from "../../../_lib/agent-personas";
 import { ScenarioEditorForm } from "../../../_components/scenario-editor-form";
 
 type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
@@ -32,13 +33,30 @@ type ScenarioInput = {
   estMinutes: number;
   personaName: string;
   personaTitle: string;
+  personaGender: PersonaGender;
+  personaAvatarUrl: string;
+  personaVoiceId: string;
+  personaPersonality: string;
+  personaCommunicationStyle: string;
+  personaBackground: string;
   openingMessage: string;
   successCriteria: string;
   feedbackGuidance: string;
   configNotes: string;
+  rubricBoardId: string;
+  rubricSourceName: string;
   rubric: { id: string; label: string; description: string; weight: number; order: number }[];
   published: boolean;
 };
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function personaGender(value: unknown): PersonaGender {
+  const raw = String(value ?? "UNSPECIFIED").toUpperCase();
+  return (["FEMALE", "MALE", "NON_BINARY", "UNSPECIFIED"].includes(raw) ? raw : "UNSPECIFIED") as PersonaGender;
+}
 
 function mapScenario(payload: {
   scenario: Record<string, unknown> & { rubric_items?: RubricApi[] };
@@ -61,6 +79,8 @@ function mapScenario(payload: {
   const agentRole = (validRoles.includes(rawRole as AgentRole) ? rawRole : "TECHNICAL_INTERVIEWER") as AgentRole;
 
   const config = typeof s.config === "object" && s.config !== null ? (s.config as Record<string, unknown>) : {};
+  const customPersona = typeof config.persona === "object" && config.persona !== null ? (config.persona as Record<string, unknown>) : {};
+  const rubricSource = typeof config.rubric_source === "object" && config.rubric_source !== null ? (config.rubric_source as Record<string, unknown>) : {};
 
   return {
     id: String(s.id),
@@ -72,17 +92,23 @@ function mapScenario(payload: {
     personaId: typeof s.persona_id === "string" ? s.persona_id : "",
     simulationKind: scenarioConfigToUiKind(config),
     estMinutes: typeof s.estimated_minutes === "number" ? s.estimated_minutes : 30,
-    personaName: typeof config.persona_name === "string" ? config.persona_name : "",
+    personaName: text(customPersona.name) || text(config.persona_name),
     personaTitle:
-      typeof config.persona_title === "string"
-        ? config.persona_title
-        : typeof config.persona_role === "string"
-          ? config.persona_role
-          : "",
+      text(customPersona.title) ||
+      text(config.persona_title) ||
+      text(config.persona_role),
+    personaGender: personaGender(customPersona.gender || config.persona_gender),
+    personaAvatarUrl: text(customPersona.avatar_url) || text(config.persona_avatar_url),
+    personaVoiceId: text(customPersona.voice_id) || text(config.persona_voice_id),
+    personaPersonality: text(customPersona.personality) || text(config.persona_personality),
+    personaCommunicationStyle: text(customPersona.communication_style) || text(config.persona_communication_style),
+    personaBackground: text(customPersona.background) || text(config.persona_background),
     openingMessage: typeof config.opening_message === "string" ? config.opening_message : "",
     successCriteria: typeof config.success_criteria === "string" ? config.success_criteria : "",
     feedbackGuidance: typeof config.feedback_guidance === "string" ? config.feedback_guidance : "",
     configNotes: typeof config.config_notes === "string" ? config.config_notes : "",
+    rubricBoardId: "",
+    rubricSourceName: text(rubricSource.name),
     rubric,
     published: String(s.status ?? "").toUpperCase() === "PUBLISHED",
   };
@@ -113,7 +139,7 @@ export function ScenarioEditPageClient() {
   }, [scenarioId]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   if (!scenarioId) return <p className="text-[14px] text-[var(--muted)]">Missing scenario id.</p>;

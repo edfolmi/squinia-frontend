@@ -14,6 +14,7 @@ const NAV = [
   { href: "/org/cohorts", label: "Cohorts" },
   { href: "/org/scenarios", label: "Scenarios" },
   { href: "/org/personas", label: "Personas" },
+  { href: "/org/rubrics", label: "Rubrics" },
   { href: "/org/assignments", label: "Assignments" },
   { href: "/org/analytics", label: "Analytics" },
   { href: "/org/settings", label: "Settings" },
@@ -27,6 +28,8 @@ function navActive(href: string, pathname: string): boolean {
       return pathname.startsWith("/org/scenarios");
     case "/org/personas":
       return pathname.startsWith("/org/personas");
+    case "/org/rubrics":
+      return pathname.startsWith("/org/rubrics");
     case "/org/assignments":
       return pathname.startsWith("/org/assignments");
     case "/org/analytics":

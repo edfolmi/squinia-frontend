@@ -31,7 +31,10 @@ export function initialsFromName(name: string): string {
 export function personaFromScenarioLike(source: unknown): RuntimePersona {
   const root = object(source);
   const config = object(root.config);
-  const persona = object(root.persona);
+  let persona = object(root.persona);
+  if (Object.keys(persona).length === 0) {
+    persona = object(config.persona);
+  }
   const name = text(persona.name) || text(config.persona_name) || DEFAULT_PERSONA.name;
   const title = text(persona.title) || text(config.persona_title) || text(config.persona_role) || DEFAULT_PERSONA.title;
   const blurb =

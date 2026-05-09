@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EmptyState, StatusBanner } from "@/app/_components/status-block";
@@ -25,6 +26,11 @@ type ScenarioApi = {
 
 type ScenarioCard = PublishedScenario & {
   persona: RuntimePersona;
+};
+
+type MeData = {
+  default_tenant_id: string | null;
+  memberships: { tenant_id?: string; account_kind?: string }[];
 };
 
 function toPublished(s: ScenarioApi): ScenarioCard {
@@ -61,11 +67,23 @@ export function ScenariosBrowser() {
   const [role, setRole] = useState("All roles");
   const [difficulty, setDifficulty] = useState<"All levels" | Difficulty>("All levels");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [isIndividual, setIsIndividual] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await v1.get<ItemsData<ScenarioApi>>("scenarios", { limit: 100, page: 1 });
+    const [res, meRes] = await Promise.all([
+      v1.get<ItemsData<ScenarioApi>>("scenarios", { limit: 100, page: 1 }),
+      v1.get<MeData>("auth/me"),
+    ]);
+    if (meRes.ok) {
+      const active =
+        meRes.data.memberships.find((m) => m.tenant_id === meRes.data.default_tenant_id) ??
+        meRes.data.memberships[0];
+      setIsIndividual(active?.account_kind === "individual");
+    } else {
+      setIsIndividual(false);
+    }
     if (!res.ok) {
       setError(res.message);
       setScenarios([]);
@@ -77,7 +95,10 @@ export function ScenariosBrowser() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   const ROLES = useMemo(
@@ -96,11 +117,18 @@ export function ScenariosBrowser() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          Choose a realistic practice room, meet the persona before you begin, and start a fresh attempt when you are ready.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
+          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
+            Choose a realistic practice room, meet the persona before you begin, and start a fresh attempt when you are ready.
+          </p>
+        </div>
+        {isIndividual ? (
+          <Link href="/scenarios/new" className="sim-btn-accent shrink-0 px-5 py-3 text-center font-mono text-[10px] uppercase">
+            Create practice with AI
+          </Link>
+        ) : null}
       </div>
 
       {error ? (
@@ -213,7 +241,7 @@ export function ScenariosBrowser() {
       {!loading && filtered.length === 0 ? (
         <EmptyState
           title="No scenarios match these filters"
-          message="Try a different role or difficulty level, or ask your organisation to publish more practice scenarios."
+          message={isIndividual ? "Try a different filter or create a personal practice scenario with AI." : "Try a different role or difficulty level, or ask your organisation to publish more practice scenarios."}
         />
       ) : null}
     </div>

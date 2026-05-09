@@ -17,6 +17,19 @@ type Props = {
 };
 
 type SaveResult = { rubric: RubricBoardApi };
+type RubricDraftItem = {
+  criterion: string;
+  description?: string | null;
+  max_score?: number;
+  weight: number;
+  sort_order?: number;
+};
+type RubricDraft = {
+  name: string;
+  description?: string;
+  items: RubricDraftItem[];
+};
+type DraftResult = { draft: RubricDraft };
 
 function defaultItems(): RubricItem[] {
   return [
@@ -33,6 +46,7 @@ function toFormItems(board?: RubricBoardApi | null): RubricItem[] {
     id: item.id,
     label: item.criterion,
     description: item.description ?? "",
+    maxScore: item.max_score,
     weight: item.weight,
     order: typeof item.sort_order === "number" ? item.sort_order : index,
   }));
@@ -44,9 +58,35 @@ function toPayloadItems(items: RubricItem[]) {
     .map((item, sort_order) => ({
       criterion: item.label,
       description: item.description || undefined,
-      max_score: 10,
+      max_score: item.maxScore ?? 10,
       weight: item.weight,
       sort_order,
+    }));
+}
+
+function itemSignature(items: RubricItem[]): string {
+  return JSON.stringify(
+    [...items]
+      .sort((a, b) => a.order - b.order)
+      .map((item) => ({
+        label: item.label,
+        description: item.description,
+        weight: item.weight,
+        maxScore: item.maxScore ?? 10,
+      })),
+  );
+}
+
+function draftItemsToForm(items: RubricDraftItem[]): RubricItem[] {
+  return [...items]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((item, order) => ({
+      id: `ai-${Date.now().toString(36)}-${order}`,
+      label: item.criterion,
+      description: item.description ?? "",
+      maxScore: item.max_score ?? 10,
+      weight: item.weight,
+      order,
     }));
 }
 
@@ -57,9 +97,48 @@ export function RubricBoardForm({ mode, initial }: Props) {
   const [description, setDescription] = useState(base?.description ?? "");
   const [isDefault, setIsDefault] = useState(Boolean(base?.is_default));
   const [items, setItems] = useState<RubricItem[]>(toFormItems(base));
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  function hasDraftTargetContent() {
+    return Boolean(name.trim() || description.trim() || itemSignature(items) !== itemSignature(defaultItems()));
+  }
+
+  function applyDraft(draft: RubricDraft) {
+    setName(draft.name ?? "");
+    setDescription(draft.description ?? "");
+    setItems(draftItemsToForm(draft.items ?? []));
+    setDraftNotice("Draft applied. Review the rubric board before saving.");
+  }
+
+  async function onDraftWithAi() {
+    setError(null);
+    setDraftNotice(null);
+    const prompt = aiPrompt.trim();
+    if (prompt.length < 10) {
+      setError("Describe the rubric board in at least 10 characters.");
+      return;
+    }
+    setDrafting(true);
+    try {
+      const res = await v1.post<DraftResult>("rubrics/draft-with-ai", { prompt });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      if (hasDraftTargetContent() && !window.confirm("Replace the current rubric fields with this AI draft?")) {
+        setDraftNotice("Draft ready, but the current fields were kept.");
+        return;
+      }
+      applyDraft(res.data.draft);
+    } finally {
+      setDrafting(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -96,6 +175,35 @@ export function RubricBoardForm({ mode, initial }: Props) {
       {error ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
       ) : null}
+
+      <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">Draft with AI</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">
+              Describe the scoring board you need. AI will fill the rubric, then you review and save.
+            </p>
+          </div>
+          {draftNotice ? <p className="text-[13px] text-[#166534]">{draftNotice}</p> : null}
+        </div>
+        <div className="mt-4 flex flex-col gap-3">
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            rows={3}
+            placeholder="e.g. Create a rubric for senior backend candidates explaining tradeoffs, incident handling, and stakeholder communication."
+            className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+          />
+          <button
+            type="button"
+            onClick={onDraftWithAi}
+            disabled={drafting}
+            className="sim-btn-accent w-fit px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
+          >
+            {drafting ? "Drafting..." : "Draft with AI"}
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <div className="grid gap-5 sm:grid-cols-2">

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-export type RubricItem = { id: string; label: string; description: string; weight: number; order: number };
+export type RubricItem = { id: string; label: string; description: string; weight: number; order: number; maxScore?: number };
 
 type Props = {
   items: RubricItem[];

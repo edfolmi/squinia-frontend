@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
 import { TenantSwitcher } from "@/app/_components/tenant-switcher";
@@ -10,11 +10,15 @@ import { brandingStyle } from "@/app/_lib/tenant-branding";
 import { activeTenantBranding, defaultMembership, isOrgOperatorRole, useSession } from "@/app/_lib/use-session";
 import { StudentProfileMenu } from "@/app/(student)/_components/student-profile-menu";
 
-const NAV = [
-  { href: "/org/cohorts", label: "Cohorts" },
+const NAV_BEFORE = [{ href: "/org/cohorts", label: "Cohorts" }] as const;
+
+const SCENARIO_STUDIO_NAV = [
   { href: "/org/scenarios", label: "Scenarios" },
   { href: "/org/personas", label: "Personas" },
-  { href: "/org/rubrics", label: "Rubrics" },
+  { href: "/org/rubrics", label: "Rubric Boards" },
+] as const;
+
+const NAV_AFTER = [
   { href: "/org/assignments", label: "Assignments" },
   { href: "/org/analytics", label: "Analytics" },
   { href: "/org/settings", label: "Settings" },
@@ -58,6 +62,42 @@ function NavLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+function ScenarioStudioNav() {
+  const pathname = usePathname();
+  const hasActiveChild = SCENARIO_STUDIO_NAV.some((item) => navActive(item.href, pathname));
+  const [expanded, setExpanded] = useState(false);
+  const open = expanded || hasActiveChild;
+
+  return (
+    <div className="flex shrink-0 flex-col">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setExpanded((value) => !value)}
+        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors ${
+          hasActiveChild
+            ? "bg-[var(--field)] text-[#111111]"
+            : "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
+        }`}
+      >
+        <span aria-hidden className={`text-[10px] transition-transform duration-200 ${open ? "rotate-90" : ""}`}>
+          ▶
+        </span>
+        <span>Scenario Studio</span>
+      </button>
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <div className={`mt-1 flex flex-col gap-1 pl-5 transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}>
+            {SCENARIO_STUDIO_NAV.map((item) => (
+              <NavLink key={item.href} href={item.href} label={item.label} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OrgAppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { session, loading, reload } = useSession();
@@ -98,7 +138,11 @@ export function OrgAppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-3 md:pb-6" aria-label="Organization">
-          {NAV.map((item) => (
+          {NAV_BEFORE.map((item) => (
+            <NavLink key={item.href} href={item.href} label={item.label} />
+          ))}
+          <ScenarioStudioNav />
+          {NAV_AFTER.map((item) => (
             <NavLink key={item.href} href={item.href} label={item.label} />
           ))}
         </nav>

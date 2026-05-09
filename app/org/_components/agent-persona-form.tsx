@@ -16,6 +16,16 @@ type Props = {
 };
 
 type SaveResult = { persona: AgentPersonaApi };
+type PersonaDraft = {
+  name: string;
+  title?: string;
+  gender?: PersonaGender;
+  personality?: string;
+  communication_style?: string;
+  background?: string;
+  voice_id?: string;
+};
+type DraftResult = { draft: PersonaDraft };
 
 const genders: { value: PersonaGender; label: string }[] = [
   { value: "FEMALE", label: "Female" },
@@ -57,6 +67,9 @@ export function AgentPersonaForm({ mode, initial }: Props) {
   const [communicationStyle, setCommunicationStyle] = useState(base.communication_style ?? "");
   const [background, setBackground] = useState(base.background ?? "");
   const [isDefault, setIsDefault] = useState(Boolean(base.is_default));
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -81,6 +94,54 @@ export function AgentPersonaForm({ mode, initial }: Props) {
     };
     reader.onerror = () => setError("We could not read that image. Please try another file.");
     reader.readAsDataURL(file);
+  }
+
+  function hasDraftTargetContent() {
+    return Boolean(
+      name.trim() ||
+        title.trim() ||
+        voiceId.trim() ||
+        personality.trim() ||
+        communicationStyle.trim() ||
+        background.trim() ||
+        gender !== "UNSPECIFIED",
+    );
+  }
+
+  function applyDraft(draft: PersonaDraft) {
+    setName(draft.name ?? "");
+    setTitle(draft.title ?? "");
+    setGender(draft.gender ?? "UNSPECIFIED");
+    setVoiceId(draft.voice_id ?? "");
+    setPersonality(draft.personality ?? "");
+    setCommunicationStyle(draft.communication_style ?? "");
+    setBackground(draft.background ?? "");
+    setDraftNotice("Draft applied. Review the persona before saving.");
+  }
+
+  async function onDraftWithAi() {
+    setError(null);
+    setDraftNotice(null);
+    const prompt = aiPrompt.trim();
+    if (prompt.length < 10) {
+      setError("Describe the persona in at least 10 characters.");
+      return;
+    }
+    setDrafting(true);
+    try {
+      const res = await v1.post<DraftResult>("agent-personas/draft-with-ai", { prompt });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      if (hasDraftTargetContent() && !window.confirm("Replace the current persona fields with this AI draft?")) {
+        setDraftNotice("Draft ready, but the current fields were kept.");
+        return;
+      }
+      applyDraft(res.data.draft);
+    } finally {
+      setDrafting(false);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -125,6 +186,35 @@ export function AgentPersonaForm({ mode, initial }: Props) {
       {error ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
       ) : null}
+
+      <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">Draft with AI</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">
+              Describe the simulation partner you want. AI will fill the form, then you review and save.
+            </p>
+          </div>
+          {draftNotice ? <p className="text-[13px] text-[#166534]">{draftNotice}</p> : null}
+        </div>
+        <div className="mt-4 flex flex-col gap-3">
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            rows={3}
+            placeholder="e.g. Create a calm but probing senior engineering manager for backend system design interviews."
+            className="w-full resize-y rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-3 text-[14px] leading-relaxed text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+          />
+          <button
+            type="button"
+            onClick={onDraftWithAi}
+            disabled={drafting}
+            className="sim-btn-accent w-fit px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
+          >
+            {drafting ? "Drafting..." : "Draft with AI"}
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <div className="flex items-center gap-4">

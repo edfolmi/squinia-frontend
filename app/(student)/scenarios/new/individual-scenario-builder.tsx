@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { PersonaAvatarPicker } from "@/app/_components/persona-avatar-picker";
 import { StatusBanner } from "@/app/_components/status-block";
+import { DEFAULT_PERSONA_AVATARS } from "@/app/_lib/default-persona-avatars";
 import { agentRoleLabel } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
@@ -23,6 +25,7 @@ type PersonaDraft = {
   personality?: string | null;
   communication_style?: string | null;
   background?: string | null;
+  avatar_url?: string | null;
 };
 
 type IndividualScenarioDraft = {
@@ -54,9 +57,38 @@ const kindOptions: { value: SimulationKind; label: string }[] = [
   { value: "video", label: "Video" },
 ];
 
+const MAX_AVATAR_BYTES = 750 * 1024;
+const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
 function activeAccountKind(me: MeData): string | undefined {
   const active = me.memberships.find((m) => m.tenant_id === me.default_tenant_id) ?? me.memberships[0];
   return active?.account_kind;
+}
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0]?.[0] ?? "?";
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1];
+  return `${first}${second ?? ""}`.toUpperCase();
+}
+
+function defaultAvatarForDraft(draft: IndividualScenarioDraft): string {
+  const seed = `${draft.persona.name} ${draft.persona.title ?? ""} ${draft.agent_role}`;
+  const score = Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0);
+  const fallback = DEFAULT_PERSONA_AVATARS[0]?.image_url ?? "";
+  return DEFAULT_PERSONA_AVATARS[score % DEFAULT_PERSONA_AVATARS.length]?.image_url ?? fallback;
+}
+
+function withDefaultAvatar(draft: IndividualScenarioDraft): IndividualScenarioDraft {
+  if (draft.persona.avatar_url) return draft;
+  return {
+    ...draft,
+    persona: {
+      ...draft.persona,
+      avatar_url: defaultAvatarForDraft(draft),
+    },
+  };
 }
 
 function skillLabel(value: string): string {
@@ -71,6 +103,7 @@ export function IndividualScenarioBuilder() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [prompt, setPrompt] = useState("");
   const [draft, setDraft] = useState<IndividualScenarioDraft | null>(null);
+  const [avatarFileName, setAvatarFileName] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +129,53 @@ export function IndividualScenarioBuilder() {
     setDraft((current) => (current ? { ...current, ...patch } : current));
   }, []);
 
+  const setPersonaAvatar = useCallback((avatarUrl: string) => {
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            persona: {
+              ...current.persona,
+              avatar_url: avatarUrl,
+            },
+          }
+        : current,
+    );
+    setAvatarFileName("");
+  }, []);
+
+  function onAvatarFile(file: File | null) {
+    setError(null);
+    if (!file) return;
+    if (!AVATAR_TYPES.has(file.type)) {
+      setError("Please upload a JPG, PNG, WEBP, or GIF image.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setError("Please choose an image smaller than 750 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDraft((current) =>
+          current
+            ? {
+                ...current,
+                persona: {
+                  ...current.persona,
+                  avatar_url: reader.result as string,
+                },
+              }
+            : current,
+        );
+        setAvatarFileName(file.name);
+      }
+    };
+    reader.onerror = () => setError("We could not read that image. Please try another file.");
+    reader.readAsDataURL(file);
+  }
+
   async function onDraft() {
     setError(null);
     setNotice(null);
@@ -111,7 +191,8 @@ export function IndividualScenarioBuilder() {
         setError(res.message);
         return;
       }
-      setDraft(res.data.draft);
+      setDraft(withDefaultAvatar(res.data.draft));
+      setAvatarFileName("");
       setNotice("Draft ready. Review the simple fields, then create your practice.");
     } finally {
       setDrafting(false);
@@ -285,7 +366,12 @@ export function IndividualScenarioBuilder() {
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            <ReadOnlyPanel title="Persona" lines={[draft.persona.name, draft.persona.title ?? "", draft.persona.communication_style ?? ""]} />
+            <PersonaPreviewPanel
+              persona={draft.persona}
+              avatarFileName={avatarFileName}
+              onSelectAvatar={setPersonaAvatar}
+              onUploadAvatar={onAvatarFile}
+            />
             <ReadOnlyPanel title="Skills evaluated" lines={draft.skills_evaluated.map(skillLabel)} />
             <ReadOnlyPanel title="Evaluation focus" lines={draft.evaluation_focus} />
           </div>
@@ -303,6 +389,68 @@ export function IndividualScenarioBuilder() {
           </div>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function PersonaPreviewPanel({
+  persona,
+  avatarFileName,
+  onSelectAvatar,
+  onUploadAvatar,
+}: {
+  persona: PersonaDraft;
+  avatarFileName: string;
+  onSelectAvatar: (imageUrl: string) => void;
+  onUploadAvatar: (file: File | null) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/45 p-4">
+      <p className="font-mono text-[10px] uppercase text-[var(--faint)]">Persona</p>
+      <div className="mt-3 flex items-center gap-3">
+        {persona.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={persona.avatar_url}
+            alt=""
+            className="h-14 w-14 rounded-full border border-[var(--rule)] object-cover"
+          />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--surface)] text-[14px] font-semibold text-[#111111]">
+            {initialsFromName(persona.name)}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-[14px] font-semibold text-[#111111]">{persona.name}</p>
+          <p className="truncate text-[13px] text-[var(--muted)]">{persona.title || "Practice partner"}</p>
+        </div>
+      </div>
+      {persona.communication_style ? (
+        <p className="mt-3 text-[13px] leading-5 text-[var(--muted)]">{persona.communication_style}</p>
+      ) : null}
+      <div className="mt-4">
+        <p className="mb-3 text-[13px] font-medium text-[#111111]">Choose avatar</p>
+        <PersonaAvatarPicker value={persona.avatar_url} onSelect={onSelectAvatar} />
+      </div>
+      <div className="mt-4 border-t border-[var(--rule)] pt-4">
+        <label
+          htmlFor="individualAvatarFile"
+          className="inline-flex cursor-pointer items-center rounded-lg border border-[var(--rule-strong)] bg-[var(--surface)] px-3 py-2 text-[12px] font-semibold text-[#111111] hover:bg-[var(--field)]"
+        >
+          Upload image
+        </label>
+        <input
+          id="individualAvatarFile"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(event) => onUploadAvatar(event.target.files?.[0] ?? null)}
+          className="sr-only"
+        />
+        <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
+          JPG, PNG, WEBP, or GIF under 750 KB.
+          {avatarFileName ? ` Selected: ${avatarFileName}` : ""}
+        </p>
+      </div>
     </div>
   );
 }

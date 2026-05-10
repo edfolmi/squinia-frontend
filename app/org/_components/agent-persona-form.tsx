@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { PersonaAvatarPicker } from "@/app/_components/persona-avatar-picker";
 import { v1 } from "@/app/_lib/v1-client";
 
 import type { AgentPersonaApi, PersonaGender } from "../_lib/agent-personas";
@@ -291,8 +292,18 @@ export function AgentPersonaForm({ mode, initial }: Props) {
             <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
               Avatar image
             </span>
-            <div className="rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="space-y-5 rounded-xl border border-[var(--rule-strong)] bg-[var(--surface)] px-4 py-4">
+              <div>
+                <p className="mb-3 text-[13px] font-medium text-[#111111]">Choose from Squinia avatars</p>
+                <PersonaAvatarPicker
+                  value={avatarUrl}
+                  onSelect={(url) => {
+                    setAvatarUrl(url);
+                    setAvatarFileName("");
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-4 border-t border-[var(--rule)] pt-5 sm:flex-row sm:items-center">
                 <PersonaAvatar name={name || "Persona"} src={avatarUrl} size="lg" />
                 <div className="min-w-0 flex-1">
                   <label

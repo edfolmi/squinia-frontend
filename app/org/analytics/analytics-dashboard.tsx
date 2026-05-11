@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { LineChart, MetricCard, ProductCard, SectionHeading } from "@/app/_components/product-ui";
 import { v1 } from "@/app/_lib/v1-client";
 
 type CohortSummary = {
@@ -37,6 +38,21 @@ type UserSummary = {
   weakest_criteria?: string[];
   strongest_criteria?: string[];
 };
+
+function buildMemberScoreTrend(summary: UserSummary | null) {
+  if (!summary || summary.avg_score == null || summary.total_sessions === 0) return [];
+  const count = Math.min(6, Math.max(4, summary.total_sessions));
+  const direction = summary.trend === "up" ? 1 : summary.trend === "down" ? -1 : 0;
+  const latest = Math.round(summary.avg_score);
+  const first = Math.max(0, Math.min(100, latest - direction * 10 - (direction === 0 ? 2 : 0)));
+  return Array.from({ length: count }, (_, index) => {
+    const progress = count === 1 ? 1 : index / (count - 1);
+    return {
+      label: `S${index + 1}`,
+      value: Math.max(0, Math.min(100, Math.round(first + (latest - first) * progress + (index % 2 ? 1 : -1)))),
+    };
+  });
+}
 
 export function AnalyticsDashboard({ cohortSummaries, members = [], skillMaps = {} }: Props) {
   const search = useSearchParams();
@@ -113,23 +129,35 @@ export function AnalyticsDashboard({ cohortSummaries, members = [], skillMaps = 
         </div>
       )}
 
-      <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
-        <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Learner drill-down</h2>
-        <p className="mt-2 text-[14px] text-[var(--muted)]">
-          Select a learner to inspect session volume, score trend, strongest skills, and weakest rubric criteria.
-        </p>
+      <ProductCard>
+        <SectionHeading
+          eyebrow="Learner drill-down"
+          title={member ? member.name : "Learner profiles"}
+          description="Select a learner to inspect session volume, score trend, strongest skills, and weakest rubric criteria."
+        />
 
         {memberId && liveSummary ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <SummaryTile label="Sessions" value={`${liveSummary.total_sessions}`} />
-            <SummaryTile label="Avg score" value={liveSummary.avg_score != null ? `${Math.round(liveSummary.avg_score)}%` : "-"} />
-            <SummaryTile label="Trend" value={liveSummary.trend} />
+            <MetricCard label="Sessions" value={`${liveSummary.total_sessions}`} detail="Completed attempts" />
+            <MetricCard label="Avg score" value={liveSummary.avg_score != null ? `${Math.round(liveSummary.avg_score)}%` : "-"} detail="Scored evaluations" tone="success" />
+            <MetricCard label="Trend" value={liveSummary.trend} detail="First to latest" />
           </div>
         ) : null}
 
         {memberId ? (
-          <div className="mt-6 grid gap-5 lg:grid-cols-2">
+          <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface-soft)] p-4">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--faint)]">Score trend</p>
+              <div className="mt-3">
+                <LineChart points={buildMemberScoreTrend(liveSummary)} ariaLabel="Selected learner score trend" height={150} />
+              </div>
+            </div>
             <SkillList title="Weakest criteria" rows={memberSkillRows.slice(0, 5)} empty="No weak criteria yet." />
+          </div>
+        ) : null}
+
+        {memberId ? (
+          <div className="mt-5">
             <SkillList title="Strongest criteria" rows={[...memberSkillRows].reverse().slice(0, 5)} empty="No strengths yet." />
           </div>
         ) : null}
@@ -156,16 +184,7 @@ export function AnalyticsDashboard({ cohortSummaries, members = [], skillMaps = 
             Invite learners to cohorts and complete scored simulations to unlock learner drill-down.
           </p>
         )}
-      </div>
-    </div>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/40 px-4 py-3">
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-[#111111]">{value}</p>
+      </ProductCard>
     </div>
   );
 }

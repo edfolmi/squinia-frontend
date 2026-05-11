@@ -324,6 +324,37 @@ function ScoreRing({ score, max, tone }: { score: number; max: number; tone: "su
   );
 }
 
+function RubricBreakdown({ competencies }: { competencies: CompetencyBlock[] }) {
+  if (!competencies.length) return null;
+  return (
+    <div className="mt-6 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--faint)]">Rubric breakdown</p>
+        <p className="text-[12px] text-[var(--muted)]">{competencies.length} scored criteria</p>
+      </div>
+      <div className="mt-4 space-y-3">
+        {competencies.map((block) => {
+          const pct = block.max > 0 ? Math.round((block.score / block.max) * 100) : 0;
+          const color = block.tone === "success" ? "bg-[var(--accent)]" : block.tone === "warn" ? "bg-amber-500" : "bg-[#6b7280]";
+          return (
+            <div key={`rubric-${block.id}`} className="grid grid-cols-[1fr_48px] items-center gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-3 text-[12px]">
+                  <span className="truncate font-medium text-[var(--foreground)]">{block.title}</span>
+                </div>
+                <div className="mt-1.5 h-2 rounded-full bg-[var(--field)]">
+                  <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} />
+                </div>
+              </div>
+              <span className="text-right font-mono text-[11px] tabular-nums text-[var(--muted)]">{block.score}/{block.max}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CompetencyCard({
   block,
   openKey,
@@ -810,6 +841,8 @@ export function SimulationReportScreen({
               </div>
               <p className="mt-5 text-[14px] leading-relaxed text-[#111111]/85">{ev.summary}</p>
             </div>
+
+            <RubricBreakdown competencies={ev.competencies} />
 
             <div className="mt-8 space-y-5">
               {ev.competencies.length > 0 ? (

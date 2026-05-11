@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { ProductPageHeader, StatusBadge } from "@/app/_components/product-ui";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { PersonaAvatar } from "../_components/persona-avatar";
@@ -27,22 +28,24 @@ export function PersonasListClient() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-10">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Agent personas</h1>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Create reusable people for scenarios so learners meet a consistent name, role, voice, and avatar.
-          </p>
-        </div>
-        <Link href="/org/personas/new" className="sim-btn-accent shrink-0 self-start px-5 py-2.5 text-center font-mono text-[10px] uppercase sm:self-auto">
-          New persona
-        </Link>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <ProductPageHeader
+        eyebrow="Scenario studio"
+        title="Agent personas"
+        description="Create reusable people for scenarios so learners meet a consistent name, role, voice, and avatar."
+        action={
+          <Link href="/org/personas/new" className="sim-btn-accent shrink-0 self-start px-5 py-2.5 text-center font-mono text-[10px] uppercase sm:self-auto">
+            New persona
+          </Link>
+        }
+      />
 
       {error ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
@@ -55,20 +58,16 @@ export function PersonasListClient() {
           <p className="text-[14px] text-[var(--muted)]">No personas yet. Create one and reuse it across scenarios.</p>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {items.map((p) => (
             <li key={p.id}>
-              <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_4px_24px_-16px_rgba(0,0,0,0.06)] sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div className="flex h-full flex-col gap-5 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] sm:p-6">
                 <div className="flex min-w-0 items-center gap-4">
                   <PersonaAvatar name={p.name} src={p.avatar_url} />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">{p.name}</h2>
-                      {p.is_default ? (
-                        <span className="rounded-full bg-[#e6f4ea] px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-[#166534]">
-                          Default
-                        </span>
-                      ) : null}
+                      {p.is_default ? <StatusBadge tone="success">Default</StatusBadge> : null}
                     </div>
                     <p className="mt-1 text-[14px] text-[var(--muted)]">{p.title || "Simulation partner"}</p>
                     <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
@@ -76,12 +75,14 @@ export function PersonasListClient() {
                     </p>
                   </div>
                 </div>
-                <Link
-                  href={`/org/personas/${p.id}/edit`}
-                  className="shrink-0 rounded-xl border border-[var(--rule-strong)] px-4 py-2.5 text-center text-[12px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--field)] hover:text-[#111111]"
-                >
-                  Edit
-                </Link>
+                <div className="mt-auto flex justify-end border-t border-[var(--rule)] pt-4">
+                  <Link
+                    href={`/org/personas/${p.id}/edit`}
+                    className="sim-transition shrink-0 rounded-xl border border-[var(--rule-strong)] px-4 py-2.5 text-center text-[12px] font-semibold text-[var(--muted)] hover:bg-[var(--field)] hover:text-[var(--foreground)]"
+                  >
+                    Edit persona
+                  </Link>
+                </div>
               </div>
             </li>
           ))}

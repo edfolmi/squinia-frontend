@@ -3,6 +3,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useMemo, useState } from "react";
 
+import { LineChart, MetricCard } from "@/app/_components/product-ui";
 import { v1 } from "@/app/_lib/v1-client";
 
 import { SkillRadarChart } from "../../_components/skill-radar-chart";
@@ -76,6 +77,14 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
     }
     return members.map((m) => ({ member: m, rows: byMember.get(m.id) ?? [] }));
   }, [members, progress]);
+  const scoreTrend = useMemo(
+    () =>
+      progress
+        .filter((row) => row.bestScore != null)
+        .slice(0, 10)
+        .map((row, index) => ({ label: `R${index + 1}`, value: row.bestScore })),
+    [progress],
+  );
 
   return (
     <div className="space-y-4">
@@ -140,9 +149,22 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
       {tab === "Progress" ? (
         <section className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <MetricBox label="Ready" value={`${overview?.ready_learners ?? 0}`} detail="At or above threshold" />
-            <MetricBox label="At risk" value={`${overview?.at_risk_learners ?? 0}`} detail="Needs attention" />
-            <MetricBox label="Active" value={`${overview?.active_learners_this_week ?? 0}`} detail="This week" />
+            <MetricCard label="Ready" value={`${overview?.ready_learners ?? 0}`} detail="At or above threshold" tone="success" />
+            <MetricCard label="At risk" value={`${overview?.at_risk_learners ?? 0}`} detail="Needs attention" tone={(overview?.at_risk_learners ?? 0) > 0 ? "danger" : "success"} />
+            <MetricCard label="Active" value={`${overview?.active_learners_this_week ?? 0}`} detail="This week" />
+          </div>
+
+          <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Cohort score trend</h2>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">Best-score samples from cohort progress rows.</p>
+              </div>
+              <span className="font-mono text-[11px] text-[var(--faint)]">{scoreTrend.length} samples</span>
+            </div>
+            <div className="mt-5">
+              <LineChart points={scoreTrend} ariaLabel="Cohort score trend" height={175} />
+            </div>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-[var(--rule)] bg-[var(--surface)]">
@@ -250,16 +272,6 @@ export function CohortDetailTabs({ cohortId, members, progress, skillAverage, sk
           </div>
         </section>
       ) : null}
-    </div>
-  );
-}
-
-function MetricBox({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#111111]">{value}</p>
-      <p className="mt-1 text-[12px] text-[var(--muted)]">{detail}</p>
     </div>
   );
 }

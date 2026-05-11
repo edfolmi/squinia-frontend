@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
+import { LineChart, MetricCard, ProductCard, ProductPageHeader, SectionHeading, StatusBadge, type LineChartPoint } from "@/app/_components/product-ui";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { SkillGapHeatmap, type HeatmapCohort } from "../_components/skill-gap-heatmap";
@@ -57,6 +58,34 @@ function skillAverages(skillMap?: SkillMap): Record<string, number> {
     if (avg != null) out[criterion] = Math.round(avg);
   }
   return out;
+}
+
+function compactDateLabel(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(5);
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function scoreTrendPoints(momentum: Array<{ date: string; avg: number | null }>): LineChartPoint[] {
+  return momentum.map((row) => ({
+    label: compactDateLabel(row.date),
+    value: row.avg != null ? Math.round(row.avg) : null,
+  }));
+}
+
+function activityTrendPoints(momentum: Array<{ date: string; completed: number; active: number }>): LineChartPoint[] {
+  return momentum.map((row) => ({
+    label: compactDateLabel(row.date),
+    value: row.completed,
+    secondary: row.active,
+  }));
+}
+
+function completionTrendPoints(cohorts: Array<{ name: string; completion: number }>): LineChartPoint[] {
+  return cohorts.map((cohort) => ({
+    label: cohort.name.length > 12 ? cohort.name.slice(0, 12) : cohort.name,
+    value: cohort.completion,
+  }));
 }
 
 export function AnalyticsPageClient() {
@@ -189,15 +218,18 @@ export function AnalyticsPageClient() {
       .slice(-8)
       .map(([date, row]) => ({ date, avg: average(row.scores), completed: row.completed, active: row.active }));
   }, [progress]);
+  const scoreTrend = scoreTrendPoints(momentum);
+  const activityTrend = activityTrendPoints(momentum);
+  const completionTrend = completionTrendPoints(cohortStatsForDashboard);
+  const activityMax = Math.max(1, ...activityTrend.flatMap((point) => [point.value ?? 0, point.secondary ?? 0]));
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Analytics Command Center</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-          Readiness, risk, skill gaps, and intervention signals across your cohorts.
-        </p>
-      </div>
+      <ProductPageHeader
+        eyebrow="Organisation intelligence"
+        title="Analytics command center"
+        description="Readiness, risk, skill gaps, completion, and intervention signals across your cohorts."
+      />
 
       {error ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
@@ -215,24 +247,25 @@ export function AnalyticsPageClient() {
       ) : (
         <>
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiTile label="Org avg score" value={orgAvg != null ? `${Math.round(orgAvg)}%` : "-"} detail="Completed evaluations" tone="green" />
-            <KpiTile label="Ready learners" value={`${totals.ready}`} detail={`${totals.members} enrolled`} tone="green" />
-            <KpiTile label="At risk" value={`${totals.atRisk}`} detail="Need staff attention" tone={totals.atRisk ? "red" : "green"} />
-            <KpiTile label="Active this week" value={`${totals.active}`} detail="Unique learners" tone="neutral" />
+            <MetricCard label="Org avg score" value={orgAvg != null ? `${Math.round(orgAvg)}%` : "-"} detail="Completed evaluations" tone="success" />
+            <MetricCard label="Ready learners" value={`${totals.ready}`} detail={`${totals.members} enrolled`} tone="success" />
+            <MetricCard label="At risk" value={`${totals.atRisk}`} detail="Need staff attention" tone={totals.atRisk ? "danger" : "success"} />
+            <MetricCard label="Active this week" value={`${totals.active}`} detail="Unique learners" />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-            <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Cohort readiness</h2>
-                <span className="text-[12px] text-[var(--muted)]">{cohorts.length} cohorts</span>
-              </div>
+            <ProductCard>
+              <SectionHeading
+                eyebrow="Cohort readiness"
+                title="Where learners stand now"
+                action={<span className="text-[12px] text-[var(--muted)]">{cohorts.length} cohorts</span>}
+              />
               <div className="mt-4 space-y-3">
                 {cohortStatsForDashboard.map((c) => (
                   <a
                     key={c.id}
                     href={`/org/cohorts/${c.id}`}
-                    className="block rounded-xl border border-[var(--rule)] px-4 py-3 hover:bg-[var(--field)]/60"
+                    className="sim-transition block rounded-xl border border-[var(--rule)] px-4 py-3 hover:bg-[var(--field)]/60"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -246,10 +279,10 @@ export function AnalyticsPageClient() {
                   </a>
                 ))}
               </div>
-            </div>
+            </ProductCard>
 
-            <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Intervention queue</h2>
+            <ProductCard>
+              <SectionHeading eyebrow="Intervention queue" title="Learners needing attention" />
               {allInterventions.length ? (
                 <ul className="mt-4 space-y-3">
                   {allInterventions.slice(0, 6).map((item) => (
@@ -259,9 +292,7 @@ export function AnalyticsPageClient() {
                           <p className="text-[13px] font-medium text-[#111111]">{item.full_name || item.email || item.user_id}</p>
                           <p className="mt-0.5 text-[11px] text-[var(--faint)]">{item.cohortName}</p>
                         </div>
-                        <span className={`rounded-full px-2 py-1 font-mono text-[9px] uppercase ${item.risk_level === "high" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-                          {item.risk_level}
-                        </span>
+                        <StatusBadge tone={item.risk_level === "high" ? "danger" : "warning"}>{item.risk_level}</StatusBadge>
                       </div>
                       <p className="mt-2 text-[12px] text-[var(--muted)]">{item.reasons[0]}</p>
                     </li>
@@ -270,7 +301,36 @@ export function AnalyticsPageClient() {
               ) : (
                 <p className="mt-4 text-[14px] text-[var(--muted)]">No learners currently need intervention.</p>
               )}
-            </div>
+            </ProductCard>
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-3">
+            <ProductCard>
+              <SectionHeading eyebrow="Score trend" title="Average score over time" description="Aggregated from cohort progress samples." />
+              <div className="mt-5">
+                <LineChart points={scoreTrend} ariaLabel="Organisation average score trend" height={170} valueSuffix="%" />
+              </div>
+            </ProductCard>
+            <ProductCard>
+              <SectionHeading eyebrow="Session activity" title="Completed sessions" description="Completed sessions and active learners by period." />
+              <div className="mt-5">
+                <LineChart
+                  points={activityTrend}
+                  ariaLabel="Completed sessions and active learners over time"
+                  height={170}
+                  yMax={activityMax}
+                  valueSuffix=""
+                  color="#175cd3"
+                  secondaryLabel="Active learners"
+                />
+              </div>
+            </ProductCard>
+            <ProductCard>
+              <SectionHeading eyebrow="Completion" title="Cohort progress trend" description="Completion rate comparison across cohorts." />
+              <div className="mt-5">
+                <LineChart points={completionTrend} ariaLabel="Cohort completion rates" height={170} valueSuffix="%" />
+              </div>
+            </ProductCard>
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -278,24 +338,37 @@ export function AnalyticsPageClient() {
               <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Skill gap heatmap</h2>
               {cohortSummaries.length ? <SkillGapHeatmap cohorts={cohortSummaries} criteria={allCriteria} /> : null}
             </div>
-            <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5">
-              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Weekly momentum</h2>
-              {momentum.length ? (
-                <div className="mt-5 space-y-3">
-                  {momentum.map((row) => (
-                    <div key={row.date} className="grid grid-cols-[86px_1fr_64px] items-center gap-3 text-[12px]">
-                      <span className="font-mono text-[var(--faint)]">{row.date.slice(5)}</span>
-                      <div className="h-2 rounded-full bg-[var(--field)]">
-                        <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, row.avg ?? 0)}%` }} />
+            <ProductCard>
+              <SectionHeading
+                eyebrow="Skill-gap summary"
+                title="Top rubric gaps"
+                description="Program-level rubric weaknesses ranked by how often they appear in cohort analytics."
+              />
+              <div className="mt-5 grid gap-3">
+                {Object.entries(
+                  allInterventions.reduce<Record<string, number>>((acc, item) => {
+                    for (const criterion of item.weak_criteria.slice(0, 3)) acc[criterion] = (acc[criterion] ?? 0) + 1;
+                    return acc;
+                  }, {}),
+                )
+                  .sort(([, a], [, b]) => b - a)
+                  .slice(0, 6)
+                  .map(([criterion, count]) => (
+                    <div key={criterion} className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-3">
+                      <div className="flex items-center justify-between gap-3 text-[13px]">
+                        <span className="font-medium text-[var(--foreground)]">{criterion}</span>
+                        <span className="font-mono text-[11px] text-[var(--muted)]">{count} learners</span>
                       </div>
-                      <span className="text-right font-mono text-[#111111]">{row.avg != null ? `${Math.round(row.avg)}%` : "-"}</span>
+                      <div className="mt-2 h-1.5 rounded-full bg-[var(--surface)]">
+                        <div className="h-1.5 rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, 18 + count * 18)}%` }} />
+                      </div>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <p className="mt-4 text-[14px] text-[var(--muted)]">Complete scored sessions to see weekly trends.</p>
-              )}
-            </div>
+                {allInterventions.length === 0 ? (
+                  <p className="text-[14px] text-[var(--muted)]">No recurring rubric gaps currently need attention.</p>
+                ) : null}
+              </div>
+            </ProductCard>
           </section>
 
           <Suspense fallback={<p className="text-[14px] text-[var(--muted)]">Loading drill-down...</p>}>
@@ -303,17 +376,6 @@ export function AnalyticsPageClient() {
           </Suspense>
         </>
       )}
-    </div>
-  );
-}
-
-function KpiTile({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: "green" | "red" | "neutral" }) {
-  const valueColor = tone === "red" ? "text-red-700" : tone === "green" ? "text-[#166534]" : "text-[#111111]";
-  return (
-    <div className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">{label}</p>
-      <p className={`mt-3 text-3xl font-semibold tracking-[-0.03em] ${valueColor}`}>{value}</p>
-      <p className="mt-1 text-[12px] text-[var(--muted)]">{detail}</p>
     </div>
   );
 }

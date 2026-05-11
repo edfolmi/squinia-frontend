@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ProductPageHeader, StatusBadge } from "@/app/_components/product-ui";
 import { EmptyState, StatusBanner } from "@/app/_components/status-block";
 import { agentRoleLabel, scenarioDifficultyLabel, scenarioConfigToUiKind } from "@/app/_lib/simulation-mappers";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
@@ -117,25 +118,24 @@ export function ScenariosBrowser() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Scenarios</h1>
-          <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Choose a realistic practice room, meet the persona before you begin, and start a fresh attempt when you are ready.
-          </p>
-        </div>
-        {isIndividual ? (
-          <Link href="/scenarios/new" className="sim-btn-accent shrink-0 px-5 py-3 text-center font-mono text-[10px] uppercase">
-            Create practice with AI
-          </Link>
-        ) : null}
-      </div>
+      <ProductPageHeader
+        eyebrow="Practice library"
+        title="Scenarios"
+        description="Choose a realistic practice room, meet the persona before you begin, and start a fresh attempt when you are ready."
+        action={
+          isIndividual ? (
+            <Link href="/scenarios/new" className="sim-btn-accent shrink-0 px-5 py-3 text-center font-mono text-[10px] uppercase">
+              Create practice with AI
+            </Link>
+          ) : null
+        }
+      />
 
       {error ? (
         <StatusBanner message={error} />
       ) : null}
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex flex-col gap-4 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-[12rem] flex-1">
           <label htmlFor="filter-role" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
             Role
@@ -144,7 +144,7 @@ export function ScenariosBrowser() {
             id="filter-role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="sim-transition w-full cursor-pointer rounded-xl border border-[var(--rule-strong)] bg-[var(--field)] px-3 py-2.5 text-[14px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            className="squinia-input px-3 py-2.5 text-[14px]"
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
@@ -164,7 +164,7 @@ export function ScenariosBrowser() {
             id="filter-difficulty"
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value as (typeof DIFFICULTIES)[number])}
-            className="sim-transition w-full cursor-pointer rounded-xl border border-[var(--rule-strong)] bg-[var(--field)] px-3 py-2.5 text-[14px] text-[#111111] outline-none focus-visible:shadow-[0_0_0_3px_var(--focus-ring)]"
+            className="squinia-input px-3 py-2.5 text-[14px]"
           >
             {DIFFICULTIES.map((d) => (
               <option key={d} value={d}>
@@ -185,15 +185,11 @@ export function ScenariosBrowser() {
           return (
             <li
               key={s.id}
-              className="flex flex-col rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)]"
+              className="sim-transition flex flex-col rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] hover:-translate-y-0.5 hover:border-[var(--rule-strong)]"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                  {kindLabel(s.kind)}
-                </span>
-                <span className="rounded-full bg-[#e6f4ea]/90 px-2.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-[#166534]">
-                  {s.difficulty}
-                </span>
+                <StatusBadge>{kindLabel(s.kind)}</StatusBadge>
+                <StatusBadge tone="success">{s.difficulty}</StatusBadge>
               </div>
               <h2 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-[#111111]">{s.title}</h2>
               <div className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--rule)] bg-[var(--field)]/55 px-3 py-3">

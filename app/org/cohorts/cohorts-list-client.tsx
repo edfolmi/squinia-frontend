@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { MetricCard, ProductPageHeader, StatusBadge } from "@/app/_components/product-ui";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 type CohortRow = {
@@ -45,55 +46,100 @@ export function CohortsListClient() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
+  const totals = rows.reduce(
+    (acc, row) => {
+      const overview = stats[row.id];
+      acc.members += overview?.total_members ?? 0;
+      if (overview?.avg_score != null) acc.scores.push(overview.avg_score);
+      if (overview?.completion_rate != null) acc.completions.push(overview.completion_rate);
+      return acc;
+    },
+    { members: 0, scores: [] as number[], completions: [] as number[] },
+  );
+  const avgScore = totals.scores.length ? Math.round(totals.scores.reduce((sum, value) => sum + value, 0) / totals.scores.length) : null;
+  const avgCompletion = totals.completions.length
+    ? Math.round((totals.completions.reduce((sum, value) => sum + value, 0) / totals.completions.length) * 100)
+    : null;
+
   return (
-    <div className="mx-auto max-w-4xl space-y-10">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Cohorts</h1>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[var(--muted)]">
-            Manage your learning cohorts, track progress, and monitor completion rates.
-          </p>
-        </div>
-        <Link
-          href="/org/cohorts/new"
-          className="sim-btn-accent shrink-0 self-start px-5 py-2.5 text-center font-mono text-[10px] uppercase sm:self-auto"
-        >
-          Create cohort
-        </Link>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <ProductPageHeader
+        eyebrow="Cohort operations"
+        title="Cohorts"
+        description="Manage learner groups, monitor readiness, and spot where facilitators should intervene."
+        action={
+          <Link
+            href="/org/cohorts/new"
+            className="sim-btn-accent shrink-0 self-start px-5 py-2.5 text-center font-mono text-[10px] uppercase sm:self-auto"
+          >
+            Create cohort
+          </Link>
+        }
+      />
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        <MetricCard label="Cohorts" value={loading ? "--" : rows.length} detail="Active workspaces" />
+        <MetricCard label="Learners" value={loading ? "--" : totals.members} detail="Across all cohorts" />
+        <MetricCard
+          label="Avg completion"
+          value={loading || avgCompletion == null ? "--" : `${avgCompletion}%`}
+          detail={avgScore == null ? "No scores yet" : `${avgScore}% avg score`}
+          tone="success"
+        />
+      </section>
 
       {error ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[14px] text-amber-900">{error}</p>
+        <p className="rounded-xl border border-amber-200 bg-[var(--warning-soft)] px-4 py-3 text-[14px] text-amber-950">{error}</p>
       ) : null}
 
       {loading ? (
-        <p className="text-[14px] text-[var(--muted)]">Loading cohorts…</p>
+        <div className="grid gap-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="squinia-card p-5">
+              <div className="squinia-skeleton h-5 w-48 rounded-lg" />
+              <div className="squinia-skeleton mt-3 h-4 w-2/3 rounded-lg" />
+            </div>
+          ))}
+        </div>
       ) : rows.length === 0 ? (
-        <p className="text-[14px] text-[var(--muted)]">No cohorts yet.</p>
+        <div className="rounded-2xl border border-dashed border-[var(--rule-strong)] bg-[var(--surface)] p-8">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">No cohorts yet</h2>
+          <p className="mt-2 max-w-xl text-[14px] leading-6 text-[var(--muted)]">
+            Create a cohort to start assigning scenarios, inviting learners, and tracking rubric progress.
+          </p>
+        </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {rows.map((c) => {
-            const o = stats[c.id];
-            const members = o?.total_members ?? 0;
-            const avg = o?.avg_score != null ? Math.round(o.avg_score) : null;
-            const completion = o?.completion_rate != null ? Math.round(o.completion_rate * 100) : null;
+            const overview = stats[c.id];
+            const members = overview?.total_members ?? 0;
+            const avg = overview?.avg_score != null ? Math.round(overview.avg_score) : null;
+            const completion = overview?.completion_rate != null ? Math.round(overview.completion_rate * 100) : null;
             return (
               <li key={c.id}>
                 <Link
                   href={`/org/cohorts/${c.id}`}
-                  className="block rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_4px_24px_-16px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-[0_8px_32px_-16px_rgba(0,0,0,0.1)] sm:p-6"
+                  className="sim-transition block h-full rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] hover:-translate-y-0.5 hover:border-[var(--rule-strong)] sm:p-6"
                 >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">{c.name}</h2>
-                      <p className="mt-1 text-[14px] text-[var(--muted)]">{c.description ?? ""}</p>
-                      <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">{c.name}</h2>
+                        <StatusBadge tone={completion != null && completion >= 75 ? "success" : "neutral"}>
+                          {completion != null ? `${completion}% complete` : "New"}
+                        </StatusBadge>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-[14px] leading-6 text-[var(--muted)]">{c.description ?? "Cohort-specific simulations, assignments, and performance tracking."}</p>
+                      <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
                         {members} members
                         {c.created_at
-                          ? ` · created ${new Date(c.created_at).toLocaleDateString(undefined, {
+                          ? ` / created ${new Date(c.created_at).toLocaleDateString(undefined, {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
@@ -101,14 +147,14 @@ export function CohortsListClient() {
                           : null}
                       </p>
                     </div>
-                    <div className="flex shrink-0 gap-6 font-mono text-[12px] tabular-nums sm:text-right">
-                      <div>
+                    <div className="grid grid-cols-2 gap-3 font-mono text-[12px] tabular-nums sm:min-w-40">
+                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-2">
                         <p className="text-[var(--faint)]">Avg score</p>
-                        <p className="mt-0.5 font-medium text-[#166534]">{avg != null ? `${avg}%` : "—"}</p>
+                        <p className="mt-0.5 font-medium text-[#166534]">{avg != null ? `${avg}%` : "--"}</p>
                       </div>
-                      <div>
+                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-2">
                         <p className="text-[var(--faint)]">Completion</p>
-                        <p className="mt-0.5 font-medium text-[#111111]">{completion != null ? `${completion}%` : "—"}</p>
+                        <p className="mt-0.5 font-medium text-[var(--foreground)]">{completion != null ? `${completion}%` : "--"}</p>
                       </div>
                     </div>
                   </div>

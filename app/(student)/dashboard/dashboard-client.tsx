@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { SquiniaBrandLockup } from "@/app/_components/squinia-brand";
 import { EmptyState, StatusBanner } from "@/app/_components/status-block";
+import { LineChart, LineChartCard, MetricCard, ProductCard, SectionHeading, StatusBadge, type LineChartPoint } from "@/app/_components/product-ui";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 import { scenarioConfigToUiKind, sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
 import { StartSimulationButton } from "@/app/simulation/_components/start-simulation-button";
@@ -157,6 +158,78 @@ function scoreLabel(value?: number | null): string {
   return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}` : "--";
 }
 
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function compactDateLabel(value?: string | null, fallback?: string): string {
+  if (!value) return fallback ?? "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback ?? value.slice(5, 10);
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Backend replacement point: swap this for learner score history once the API returns dated score samples.
+function buildMockLearnerScoreTrend(home: LearnerHome): LineChartPoint[] {
+  const completed = home.growth.completed_sessions;
+  const base = home.growth.first_score ?? home.growth.avg_score ?? home.growth.latest_score;
+  const latest = home.growth.latest_score ?? home.growth.avg_score ?? base;
+  if (completed === 0 || base == null || latest == null) return [];
+
+  const count = Math.min(7, Math.max(4, completed));
+  const offsets = [-2, 1, -1, 2, -1, 1, 0];
+  return Array.from({ length: count }, (_, index) => {
+    const progress = count === 1 ? 1 : index / (count - 1);
+    const raw = base + (latest - base) * progress + offsets[index % offsets.length];
+    const session = home.recent_sessions[count - index - 1];
+    return {
+      label: compactDateLabel(session?.ended_at ?? session?.created_at, `Rep ${index + 1}`),
+      value: clampScore(raw),
+    };
+  });
+}
+
+function buildLearnerActivityTrend(home: LearnerHome): LineChartPoint[] {
+  return home.streak.history.slice(-14).map((day) => ({
+    label: compactDateLabel(day.date, day.date.slice(5)),
+    value: day.completed ? 1 : 0,
+  }));
+}
+
+// Backend replacement point: use analytics progress-over-time for learner cohorts when exposed to learners.
+function buildMockCohortScoreTrend(summary: UserSummary | null, sessions: SessionItem[]): LineChartPoint[] {
+  if (!summary || summary.avg_score == null || summary.total_sessions === 0) return [];
+  const count = Math.min(8, Math.max(4, sessions.length || summary.total_sessions));
+  const direction = summary.trend === "up" ? 1 : summary.trend === "down" ? -1 : 0;
+  const end = Math.round(summary.avg_score);
+  const start = clampScore(end - direction * Math.min(12, count * 2) - (direction === 0 ? 3 : 0));
+  return Array.from({ length: count }, (_, index) => {
+    const session = sessions[count - index - 1];
+    const progress = count === 1 ? 1 : index / (count - 1);
+    const wobble = index % 2 === 0 ? -1 : 1;
+    return {
+      label: compactDateLabel(session?.ended_at ?? session?.updated_at, `W${index + 1}`),
+      value: clampScore(start + (end - start) * progress + wobble),
+    };
+  });
+}
+
+function buildSessionActivityTrend(sessions: SessionItem[]): LineChartPoint[] {
+  const byDate = new Map<string, number>();
+  for (const session of sessions) {
+    const raw = session.ended_at ?? session.updated_at;
+    if (!raw) continue;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = date.toISOString().slice(0, 10);
+    byDate.set(key, (byDate.get(key) ?? 0) + 1);
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-10)
+    .map(([date, count]) => ({ label: compactDateLabel(date, date.slice(5)), value: count }));
+}
+
 function IndividualLearnerDashboard({
   home,
   fullName,
@@ -172,6 +245,8 @@ function IndividualLearnerDashboard({
   const mastery = home.mastery;
   const masteryScore = mastery?.current_mastery_score ?? home.level.mastery_score ?? 0;
   const latestEvent = mastery?.latest_level_event;
+  const scoreTrend = buildMockLearnerScoreTrend(home);
+  const activityTrend = buildLearnerActivityTrend(home);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -252,41 +327,50 @@ function IndividualLearnerDashboard({
         </div>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+      <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+        <ProductCard>
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Next scenario</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{next?.title ?? "Build your first recommendation"}</h2>
-              <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--muted)]">
-                {next?.description ?? "Complete one scored simulation so Squinia can personalize your next mission."}
-              </p>
-            </div>
-            {next ? (
-              <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                {next.difficulty?.toLowerCase() ?? "practice"}
-              </span>
-            ) : null}
+            <SectionHeading
+              eyebrow="Next scenario"
+              title={next?.title ?? "Build your first recommendation"}
+              description={next?.description ?? "Complete one scored simulation so Squinia can personalize your next mission."}
+            />
+            {next ? <StatusBadge tone="success">{next.difficulty?.toLowerCase() ?? "practice"}</StatusBadge> : null}
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <MetricTile label="Average score" value={scoreLabel(home.growth.avg_score)} detail={`${home.growth.completed_sessions} scored`} />
-            <MetricTile
+            <MetricCard label="Average score" value={scoreLabel(home.growth.avg_score)} detail={`${home.growth.completed_sessions} scored`} tone="success" />
+            <MetricCard
               label="Growth"
               value={typeof scoreDelta === "number" ? `${scoreDelta >= 0 ? "+" : ""}${Math.round(scoreDelta)}` : "--"}
               detail="First to latest"
+              tone={typeof scoreDelta === "number" && scoreDelta < 0 ? "warning" : "success"}
             />
-            <MetricTile
+            <MetricCard
               label="Effective reps"
               value={`${Math.round(mastery?.effective_sessions ?? 0)}`}
               detail={mastery?.scenario_diversity.repeat_limited ? "Repeat limits applied" : "Quality weighted"}
             />
           </div>
-        </section>
+        </ProductCard>
 
-        <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Streak map</p>
-          <div className="mt-5 grid grid-cols-7 gap-2">
-            {home.streak.history.map((day) => (
+        <ProductCard>
+          <SectionHeading
+            eyebrow="Habit signal"
+            title={`${home.streak.current} day streak`}
+            description={`${home.streak.weekly_completions} completions this week, ${home.streak.longest} day best.`}
+          />
+          <div className="mt-5">
+            <LineChart
+              points={activityTrend}
+              ariaLabel="Daily completion activity over the last two weeks"
+              yMax={1}
+              valueSuffix=""
+              height={150}
+              color="#166534"
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-7 gap-2">
+            {home.streak.history.slice(-14).map((day) => (
               <div
                 key={day.date}
                 className={`aspect-square rounded-md border ${day.completed ? "border-[#32a852] bg-[#32a852]" : "border-[var(--rule)] bg-[var(--field)]"}`}
@@ -294,11 +378,17 @@ function IndividualLearnerDashboard({
               />
             ))}
           </div>
-          <p className="mt-4 text-[13px] leading-6 text-[var(--muted)]">
-            Consistency leaderboard comes later; for now this keeps the daily habit visible without punishing new learners.
-          </p>
-        </section>
+        </ProductCard>
       </div>
+
+      <LineChartCard
+        eyebrow="Score trend"
+        title="Learner growth over time"
+        description="A replaceable trend layer until the learner score-history endpoint ships."
+        points={scoreTrend}
+        ariaLabel="Learner score trend over recent scored simulations"
+        metric={<p className="text-2xl font-semibold tabular-nums text-[#166534]">{scoreLabel(home.growth.latest_score ?? home.growth.avg_score)}</p>}
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
@@ -431,16 +521,6 @@ function LevelChart({ levels }: { levels: NonNullable<LearnerHome["mastery"]>["l
   );
 }
 
-function MetricTile({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--rule)] bg-[var(--field)]/45 p-4">
-      <p className="text-2xl font-semibold text-[#111111]">{value}</p>
-      <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--faint)]">{label}</p>
-      <p className="mt-2 text-[12px] text-[var(--muted)]">{detail}</p>
-    </div>
-  );
-}
-
 function SkillList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
   return (
     <div>
@@ -548,21 +628,10 @@ export function DashboardClient() {
   }, [load]);
 
   const latestScore = summary?.avg_score != null ? Math.round(summary.avg_score) : null;
-  const progressBars =
-    summary && (summary.strongest_criteria.length > 0 || summary.weakest_criteria.length > 0)
-      ? [
-          { label: "Strong", value: summary.strongest_criteria.length * 20 },
-          { label: "Focus", value: summary.weakest_criteria.length * 15 },
-          { label: "Avg", value: latestScore ?? 50 },
-        ]
-      : [
-          { label: "Sessions", value: Math.min(100, (summary?.total_sessions ?? 0) * 10) },
-          { label: "Avg", value: latestScore ?? 40 },
-          { label: "Trend", value: summary?.trend === "up" ? 75 : summary?.trend === "down" ? 45 : 60 },
-        ];
-
-  const maxProgress = Math.max(...progressBars.map((p) => p.value), 1);
   const selectedCohort = cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null;
+  const cohortScoreTrend = buildMockCohortScoreTrend(summary, sessions);
+  const sessionActivityTrend = buildSessionActivityTrend(sessions);
+  const activityMax = Math.max(1, ...sessionActivityTrend.map((point) => point.value ?? 0));
 
   if (learnerHome) {
     return <IndividualLearnerDashboard home={learnerHome} fullName={me?.user.full_name} error={error} />;
@@ -794,38 +863,45 @@ export function DashboardClient() {
           </Link>
         </section>
 
-        <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)] sm:p-6">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">Progress</p>
-          <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em]">Activity</h2>
-          <p className="mt-2 text-[13px] text-[var(--muted)]">
-            {summary ? (
-              <>
-                <strong className="text-[#111111]">{summary.total_sessions}</strong> sessions
-                {summary.avg_score != null ? (
-                  <>
-                    {" "}
-                    - avg score <strong className="text-[#111111]">{Math.round(summary.avg_score)}</strong>
-                  </>
-                ) : null}{" "}
-                - trend <strong className="text-[#111111]">{summary.trend}</strong>
-              </>
-            ) : (
-              "Sign in and complete sessions to see analytics."
-            )}
-          </p>
-          <div className="mt-8 flex h-40 items-end justify-between gap-1 sm:gap-2" role="img" aria-label="Activity chart">
-            {progressBars.map((p) => (
-              <div key={p.label} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                <div
-                  className="w-full max-w-[2.75rem] rounded-t-lg bg-[#32a852]/85"
-                  style={{ height: `${Math.max(10, Math.round((p.value / maxProgress) * 120))}px` }}
-                  title={`${p.label}: ${p.value}`}
-                />
-                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--faint)]">{p.label}</span>
-              </div>
-            ))}
+        <ProductCard>
+          <SectionHeading
+            eyebrow="Progress"
+            title="Score trend"
+            description={
+              summary ? (
+                <>
+                  <strong className="text-[var(--foreground)]">{summary.total_sessions}</strong> sessions, trend{" "}
+                  <strong className="text-[var(--foreground)]">{summary.trend}</strong>.
+                </>
+              ) : (
+                "Complete scored sessions to unlock progress analytics."
+              )
+            }
+          />
+          <div className="mt-5">
+            <LineChart
+              points={cohortScoreTrend}
+              ariaLabel="Cohort learner score trend"
+              height={170}
+              valueSuffix="%"
+            />
           </div>
-        </section>
+          {sessionActivityTrend.length ? (
+            <div className="mt-6 border-t border-[var(--rule)] pt-5">
+              <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--faint)]">Session activity</p>
+              <div className="mt-3">
+                <LineChart
+                  points={sessionActivityTrend}
+                  ariaLabel="Completed session activity over time"
+                  height={135}
+                  yMax={activityMax}
+                  valueSuffix=""
+                  color="#175cd3"
+                />
+              </div>
+            </div>
+          ) : null}
+        </ProductCard>
       </div>
 
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] px-5 py-5 sm:px-6">

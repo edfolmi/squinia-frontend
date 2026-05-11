@@ -49,8 +49,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[#111111]">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-[var(--rule)] bg-[var(--surface)] px-5 py-6 lg:block">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <aside className="fixed inset-y-0 left-0 hidden w-[17rem] border-r border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f4f7f0_100%)] px-5 py-6 lg:block">
         <SquiniaBrandLockup href="/admin" compact />
         <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Owner console</p>
         <nav className="mt-8 space-y-1">
@@ -60,8 +60,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               className={`block rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors ${
                 active(pathname, item.href)
-                  ? "bg-[#111111] text-white"
-                  : "text-[var(--muted)] hover:bg-[var(--field)] hover:text-[#111111]"
+                  ? "bg-[var(--surface-strong)] text-white shadow-[0_16px_34px_-24px_rgba(16,23,17,0.75)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
               }`}
             >
               {item.label}
@@ -69,7 +69,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </aside>
-      <div className="lg:pl-64">
+      <div className="lg:pl-[17rem]">
         <header className="sticky top-0 z-20 border-b border-[var(--rule)] bg-[var(--surface)]/95 px-4 py-3 backdrop-blur sm:px-6 lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <SquiniaBrandLockup href="/admin" compact />

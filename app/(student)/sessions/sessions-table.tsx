@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { LineChart } from "@/app/_components/product-ui";
 import { parseAttemptSessionId } from "../../simulation/_lib/attempt-id";
 import { simulationReportHref } from "@/app/_lib/simulation-mappers";
 
@@ -137,6 +138,19 @@ function SessionGroupRows({
               aria-labelledby={`session-trigger-${safeDomId(groupKey)}`}
               className="ml-7 border-l border-[var(--rule)] pl-4"
             >
+              <p className="pb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">
+                Score progression
+              </p>
+              <div className="mb-4 rounded-xl border border-[var(--rule)] bg-[var(--surface)] px-3 py-3">
+                <LineChart
+                  points={[...attempts].reverse().map((row, index) => ({
+                    label: `Attempt ${index + 1}`,
+                    value: row.score,
+                  }))}
+                  ariaLabel={`Score progression for ${scenarioTitle}`}
+                  height={130}
+                />
+              </div>
               <p className="pb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--faint)]">
                 Reports
               </p>

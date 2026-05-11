@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Squinia",
   description: "AI role-play simulations for interview practice and workplace communication.",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon_io/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

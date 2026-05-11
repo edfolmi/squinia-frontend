@@ -109,10 +109,14 @@ export function OrgAppShell({ children }: { children: React.ReactNode }) {
     if (!loading && !allowed) router.replace("/dashboard");
   }, [allowed, loading, router]);
 
-  if (loading || !allowed) {
+  if ((loading && !session) || !allowed) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--background)] px-4 text-[14px] text-[var(--muted)]">
-        Checking workspace access...
+        <div className="w-full max-w-sm" aria-busy="true" aria-label="Checking workspace access">
+          <div className="squinia-skeleton h-10 w-44 rounded-xl" />
+          <div className="squinia-skeleton mt-6 h-4 w-full rounded-full" />
+          <div className="squinia-skeleton mt-3 h-4 w-2/3 rounded-full" />
+        </div>
       </div>
     );
   }

@@ -47,7 +47,7 @@ export function StudentProfileMenu() {
     window.location.href = "/login";
   }
 
-  if (loading) {
+  if (loading && !session) {
     return (
       <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--rule)] bg-[var(--field)]">
         <span className="animate-pulse font-mono text-[10px] text-[var(--faint)]">…</span>

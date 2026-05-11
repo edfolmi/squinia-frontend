@@ -2,6 +2,7 @@ import { isJwtExpired, sessionCookieMaxAgeSeconds } from "./auth-token-expiry.mj
 
 const ACCESS_KEY = "squinia_access_token";
 const REFRESH_KEY = "squinia_refresh_token";
+const SESSION_SNAPSHOT_KEY = "squinia_session_snapshot";
 
 /** Non-httpOnly flag so Edge middleware can gate HTML routes; real auth is still the Bearer token in localStorage. */
 export const AUTH_SESSION_COOKIE = "squinia_session";
@@ -23,6 +24,11 @@ function clearSessionPresenceCookie(): void {
   document.cookie = `${AUTH_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
+function clearSessionSnapshot(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SESSION_SNAPSHOT_KEY);
+}
+
 /** Call on auth pages when a token exists so middleware sees the session cookie (e.g. after upgrading from LS-only). */
 export function ensureAuthSessionCookie(): void {
   if (typeof window === "undefined") return;
@@ -38,6 +44,7 @@ export type StoredAuthTokens = {
 
 export function setAuthTokens(tokens: StoredAuthTokens): void {
   if (typeof window === "undefined") return;
+  clearSessionSnapshot();
   localStorage.setItem(ACCESS_KEY, tokens.access_token);
   localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
   setSessionPresenceCookie(tokens.access_token);
@@ -47,6 +54,7 @@ export function clearAuthTokens(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  clearSessionSnapshot();
   clearSessionPresenceCookie();
 }
 

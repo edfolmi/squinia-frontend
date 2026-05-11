@@ -41,9 +41,21 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export function StudentAppShell({ children }: { children: React.ReactNode }) {
-  const { session, reload } = useSession();
+  const { session, loading, reload } = useSession();
   const membership = defaultMembership(session);
   const branding = activeTenantBranding(session);
+
+  if (loading && !session) {
+    return (
+      <div className="flex min-h-[100dvh] bg-[var(--background)] px-6 text-[var(--foreground)]">
+        <div className="m-auto w-full max-w-sm" aria-busy="true" aria-label="Loading workspace">
+          <div className="squinia-skeleton h-10 w-40 rounded-xl" />
+          <div className="squinia-skeleton mt-6 h-4 w-full rounded-full" />
+          <div className="squinia-skeleton mt-3 h-4 w-2/3 rounded-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row" style={brandingStyle(branding)}>

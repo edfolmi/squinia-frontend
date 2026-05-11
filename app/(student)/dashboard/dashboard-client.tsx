@@ -540,6 +540,37 @@ function SkillList({ title, items, empty }: { title: string; items: string[]; em
   );
 }
 
+function DashboardLoadingState() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-8" aria-busy="true" aria-label="Loading dashboard">
+      <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-6 shadow-[0_22px_70px_-48px_rgba(11,32,20,0.28)] sm:p-8">
+        <div className="squinia-skeleton h-5 w-44 rounded-full" />
+        <div className="squinia-skeleton mt-6 h-10 w-full max-w-2xl rounded-xl" />
+        <div className="squinia-skeleton mt-4 h-4 w-full max-w-3xl rounded-full" />
+        <div className="squinia-skeleton mt-3 h-4 w-2/3 rounded-full" />
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="rounded-lg border border-[var(--rule)] bg-[var(--field)]/45 p-4">
+              <div className="squinia-skeleton h-7 w-16 rounded-lg" />
+              <div className="squinia-skeleton mt-3 h-3 w-24 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {["assignments", "progress"].map((key) => (
+          <section key={key} className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
+            <div className="squinia-skeleton h-4 w-32 rounded-full" />
+            <div className="squinia-skeleton mt-5 h-24 w-full rounded-xl" />
+            <div className="squinia-skeleton mt-4 h-4 w-2/3 rounded-full" />
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function DashboardClient() {
   const searchParams = useSearchParams();
   const cohortParam = searchParams.get("cohort");
@@ -626,6 +657,10 @@ export function DashboardClient() {
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [load]);
+
+  if (loading && !me && !learnerHome) {
+    return <DashboardLoadingState />;
+  }
 
   const latestScore = summary?.avg_score != null ? Math.round(summary.avg_score) : null;
   const selectedCohort = cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null;

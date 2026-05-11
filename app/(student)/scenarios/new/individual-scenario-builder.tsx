@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PersonaAvatarPicker } from "@/app/_components/persona-avatar-picker";
+import { AiSparkIcon } from "@/app/_components/product-ui";
 import { StatusBanner } from "@/app/_components/status-block";
 import { DEFAULT_PERSONA_AVATARS } from "@/app/_lib/default-persona-avatars";
 import { agentRoleLabel } from "@/app/_lib/simulation-mappers";
@@ -239,8 +240,13 @@ export function IndividualScenarioBuilder() {
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">Individual practice builder</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Create practice with AI</h1>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#b8e8c4] bg-[var(--accent-soft)] text-[var(--accent)]">
+              <AiSparkIcon className="h-4 w-4" />
+            </span>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">Individual practice builder</p>
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Create practice with AI</h1>
           <p className="mt-2 max-w-2xl text-[15px] leading-relaxed text-[var(--muted)]">
             Describe the interview, role, job description, or conversation you want to rehearse. Squinia will turn it into a focused practice room.
           </p>
@@ -269,8 +275,9 @@ export function IndividualScenarioBuilder() {
           type="button"
           onClick={onDraft}
           disabled={drafting}
-          className="sim-btn-accent mt-4 px-5 py-3 font-mono text-[10px] uppercase disabled:opacity-50"
+          className="sim-btn-accent mt-4 inline-flex items-center gap-2 px-5 py-3 font-mono text-[10px] uppercase disabled:opacity-50"
         >
+          <AiSparkIcon className="h-3.5 w-3.5" />
           {drafting ? "Drafting..." : draft ? "Regenerate preview" : "Generate preview"}
         </button>
       </section>
@@ -279,7 +286,10 @@ export function IndividualScenarioBuilder() {
         <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">AI preview</p>
+              <div className="flex items-center gap-2">
+                <AiSparkIcon className="h-4 w-4 text-[var(--accent)]" />
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--faint)]">AI preview</p>
+              </div>
               <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[#111111]">Review your practice room</h2>
             </div>
             <span className="rounded-full border border-[var(--rule)] bg-[var(--field)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">

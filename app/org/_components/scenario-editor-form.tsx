@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { UiSimulationKind } from "@/app/_lib/simulation-mappers";
+import { AiSparkIcon } from "@/app/_components/product-ui";
 import { uiKindToSessionMode } from "@/app/_lib/simulation-mappers";
 import { v1 } from "@/app/_lib/v1-client";
 
@@ -443,7 +444,12 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">AI scenario draft</h2>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#b8e8c4] bg-[var(--accent-soft)] text-[var(--accent)]">
+                <AiSparkIcon className="h-4 w-4" />
+              </span>
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Draft with AI</h2>
+            </div>
             <p className="mt-2 max-w-xl text-[14px] leading-relaxed text-[var(--muted)]">
               Describe the practice room and Squinia will fill the scenario, custom persona, and rubric fields for review.
             </p>
@@ -452,8 +458,9 @@ export function ScenarioEditorForm({ mode, initial }: Props) {
             type="button"
             onClick={onDraftWithAi}
             disabled={drafting}
-            className="sim-btn-accent shrink-0 px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
+            className="sim-btn-accent inline-flex shrink-0 items-center gap-2 px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
           >
+            <AiSparkIcon className="h-3.5 w-3.5" />
             {drafting ? "Drafting..." : "Generate draft"}
           </button>
         </div>

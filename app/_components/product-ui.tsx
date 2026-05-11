@@ -5,6 +5,10 @@ function cx(...classes: Array<string | false | null | undefined>): string {
 }
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
+type IconProps = {
+  className?: string;
+  "aria-hidden"?: boolean;
+};
 
 const badgeTone: Record<Tone, string> = {
   neutral: "border-[var(--rule)] bg-[var(--field)] text-[var(--muted)]",
@@ -13,6 +17,24 @@ const badgeTone: Record<Tone, string> = {
   danger: "border-red-200 bg-[var(--danger-soft)] text-[var(--danger-strong)]",
   info: "border-blue-200 bg-[var(--info-soft)] text-[var(--info-strong)]",
 };
+
+export function AiSparkIcon({ className, "aria-hidden": ariaHidden = true }: IconProps) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden={ariaHidden}
+    >
+      <path d="M12 2L14.43 8.61L21 11L14.43 13.39L12 20L9.57 13.39L3 11L9.57 8.61L12 2Z" fill="currentColor" />
+      <path d="M19 3L19.72 4.96L21.68 5.68L19.72 6.4L19 8.36L18.28 6.4L16.32 5.68L18.28 4.96L19 3Z" fill="currentColor" />
+      <path d="M5 16L5.72 17.96L7.68 18.68L5.72 19.4L5 21.36L4.28 19.4L2.32 18.68L4.28 17.96L5 16Z" fill="currentColor" />
+    </svg>
+  );
+}
 
 export function ProductPageHeader({
   eyebrow,

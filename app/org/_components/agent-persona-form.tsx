@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { PersonaAvatarPicker } from "@/app/_components/persona-avatar-picker";
+import { AiSparkIcon } from "@/app/_components/product-ui";
 import { v1 } from "@/app/_lib/v1-client";
 
 import type { AgentPersonaApi, PersonaGender } from "../_lib/agent-personas";
@@ -191,7 +192,12 @@ export function AgentPersonaForm({ mode, initial }: Props) {
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">Draft with AI</h2>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[#b8e8c4] bg-[var(--accent-soft)] text-[var(--accent)]">
+                <AiSparkIcon className="h-4 w-4" />
+              </span>
+              <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#111111]">Draft with AI</h2>
+            </div>
             <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">
               Describe the simulation partner you want. AI will fill the form, then you review and save.
             </p>
@@ -210,8 +216,9 @@ export function AgentPersonaForm({ mode, initial }: Props) {
             type="button"
             onClick={onDraftWithAi}
             disabled={drafting}
-            className="sim-btn-accent w-fit px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
+            className="sim-btn-accent inline-flex w-fit items-center gap-2 px-5 py-2.5 font-mono text-[10px] uppercase disabled:opacity-50"
           >
+            <AiSparkIcon className="h-3.5 w-3.5" />
             {drafting ? "Drafting..." : "Draft with AI"}
           </button>
         </div>

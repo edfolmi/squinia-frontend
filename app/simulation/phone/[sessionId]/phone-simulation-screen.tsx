@@ -266,6 +266,7 @@ export function PhoneSimulationScreen({
   const callElapsedRef = useRef(0);
 
   const audio = usePhoneSimulationAudio();
+  const { micStream, resetPipeline, startPipeline } = audio;
 
   const useBackendLiveKit = useMemo(
     () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
@@ -295,21 +296,21 @@ export function PhoneSimulationScreen({
     if (phase !== "live") return;
     let cancelled = false;
     void (async () => {
-      await audio.startPipeline();
-      if (cancelled) audio.resetPipeline();
+      await startPipeline();
+      if (cancelled) resetPipeline();
     })();
     return () => {
       cancelled = true;
-      audio.resetPipeline();
+      resetPipeline();
     };
-  }, [phase, useBackendLiveKit, audio.startPipeline, audio.resetPipeline]);
+  }, [phase, useBackendLiveKit, startPipeline, resetPipeline]);
 
   useEffect(() => {
     if (useBackendLiveKit) return;
-    const t = audio.micStream?.getAudioTracks()[0];
+    const t = micStream?.getAudioTracks()[0];
     if (!t) return;
     t.enabled = !muted;
-  }, [muted, useBackendLiveKit, audio.micStream]);
+  }, [muted, useBackendLiveKit, micStream]);
 
   useEffect(() => {
     if (phase !== "micTest") return;
@@ -327,7 +328,7 @@ export function PhoneSimulationScreen({
     };
   }, []);
 
-  async function flushTranscriptQueue(drain = false) {
+  const flushTranscriptQueue = useCallback(async (drain = false) => {
     if (!useBackendLiveKit || transcriptSendingRef.current) return;
     transcriptSendingRef.current = true;
     try {
@@ -343,7 +344,7 @@ export function PhoneSimulationScreen({
     } finally {
       transcriptSendingRef.current = false;
     }
-  }
+  }, [sessionId, useBackendLiveKit]);
 
   const queueTranscript = useCallback((item: LiveTranscriptIngestItem) => {
     if (!useBackendLiveKit) return;
@@ -353,7 +354,7 @@ export function PhoneSimulationScreen({
       transcriptTimerRef.current = null;
       void flushTranscriptQueue(false);
     }, 700);
-  }, [useBackendLiveKit]);
+  }, [flushTranscriptQueue, useBackendLiveKit]);
 
   const handleTranscriptFinal = useCallback(
     (entry: {

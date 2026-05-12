@@ -290,7 +290,6 @@ export function SimulationScreen({
   const [aiTyping, setAiTyping] = useState(false);
   const [aiStream, setAiStream] = useState<AiStream | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [mood, setMood] = useState<Mood>("probing");
   const [signals, setSignals] = useState({
     confidence: "→" as "↑" | "→" | "↓",
     clarity: "→" as "↑" | "→" | "↓",
@@ -303,6 +302,12 @@ export function SimulationScreen({
   const streamStateRef = useRef<AiStream | null>(null);
 
   const live = phase === "live";
+  const mood = useMemo<Mood>(() => {
+    if (!live || lines.length <= 1) return "probing";
+    const last = lines[lines.length - 1];
+    if (last.role === "user" || aiTyping || aiStream) return "thinking";
+    return lines.length > 4 ? "satisfied" : "probing";
+  }, [aiStream, aiTyping, lines, live]);
   const useBackendChat = useMemo(
     () => process.env.NEXT_PUBLIC_USE_BACKEND_SESSIONS === "1" && isBackendSessionId(sessionId),
     [sessionId],
@@ -350,8 +355,9 @@ export function SimulationScreen({
   useEffect(() => {
     if (!live || !useBackendChat) return;
     let cancelled = false;
-    setAiTyping(true);
-    void (async () => {
+    const timeout = window.setTimeout(() => {
+      setAiTyping(true);
+      void (async () => {
       try {
         const res = await postTextSimulationOpening(sessionId);
         if (cancelled) return;
@@ -372,9 +378,11 @@ export function SimulationScreen({
       } finally {
         if (!cancelled) setAiTyping(false);
       }
-    })();
+      })();
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
       setAiTyping(false);
     };
   }, [live, useBackendChat, sessionId]);
@@ -400,20 +408,6 @@ export function SimulationScreen({
     }, 0);
     return () => window.clearTimeout(t);
   }, [live, sessionBusy]);
-
-  useEffect(() => {
-    if (!live) return;
-    if (lines.length <= 1) {
-      setMood("probing");
-      return;
-    }
-    const last = lines[lines.length - 1];
-    if (last.role === "user" || aiTyping || aiStream) {
-      setMood("thinking");
-      return;
-    }
-    setMood(lines.length > 4 ? "satisfied" : "probing");
-  }, [lines, aiTyping, aiStream, live]);
 
   const pushUser = useCallback(
     (text: string) => {
@@ -466,7 +460,7 @@ export function SimulationScreen({
     if (!last || last.role !== "user") return;
     if (last.text.startsWith("Note —")) return;
 
-    setAiTyping(true);
+    const typingTimeout = window.setTimeout(() => setAiTyping(true), 0);
     const delay = 900 + Math.min(1400, last.text.length * 22);
     const t = window.setTimeout(() => {
       const prevSnapshot = lines;
@@ -484,6 +478,7 @@ export function SimulationScreen({
     }, delay);
 
     return () => {
+      window.clearTimeout(typingTimeout);
       window.clearTimeout(t);
       setAiTyping(false);
     };
@@ -492,22 +487,25 @@ export function SimulationScreen({
   useEffect(() => {
     if (!aiStream) return;
     if (aiStream.shown.length >= aiStream.full.length) {
+      const completedStream = aiStream;
+      const timeout = window.setTimeout(() => {
       setLines((prev) => [
         ...prev,
         {
-          id: aiStream.lineId,
+          id: completedStream.lineId,
           role: "ai",
-          text: aiStream.full,
-          offsetSec: aiStream.offsetSec,
+          text: completedStream.full,
+          offsetSec: completedStream.offsetSec,
         },
       ]);
-      setAiStream(null);
+      setAiStream((current) => (current?.lineId === completedStream.lineId ? null : current));
       setSignals({
         confidence: (["↑", "→", "↓"] as const)[Math.floor(Math.random() * 3)],
         clarity: (["↑", "→", "↓"] as const)[Math.floor(Math.random() * 3)],
         depth: (["↑", "→", "↓"] as const)[Math.floor(Math.random() * 3)],
       });
-      return;
+      }, 0);
+      return () => window.clearTimeout(timeout);
     }
 
     const tick = window.setTimeout(() => {

@@ -11,6 +11,8 @@ import { v1, type ItemsData } from "@/app/_lib/v1-client";
 import { scenarioConfigToUiKind, sessionModeToUiKind, simulationReportHref } from "@/app/_lib/simulation-mappers";
 import { StartSimulationButton } from "@/app/simulation/_components/start-simulation-button";
 
+import { formatAchievementDate, type AchievementLibrary } from "../achievements/achievement-types";
+
 type MeData = {
   user: { id: string; full_name?: string; email?: string };
   default_tenant_id: string | null;
@@ -390,6 +392,8 @@ function IndividualLearnerDashboard({
         metric={<p className="text-2xl font-semibold tabular-nums text-[#166534]">{scoreLabel(home.growth.latest_score ?? home.growth.avg_score)}</p>}
       />
 
+      <AchievementPreview />
+
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 sm:p-6">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--faint)]">Skill gaps</p>
@@ -537,6 +541,83 @@ function SkillList({ title, items, empty }: { title: string; items: string[]; em
         </ul>
       )}
     </div>
+  );
+}
+
+function AchievementPreview() {
+  const [data, setData] = useState<AchievementLibrary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const res = await v1.get<AchievementLibrary>("me/achievements");
+    if (!res.ok) {
+      setError(res.message);
+      setData(null);
+      setLoading(false);
+      return;
+    }
+    setData(res.data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [load]);
+
+  const earned = (data?.items ?? []).filter((item) => item.earned && item.earned_id).slice(0, 3);
+  const next = (data?.items ?? []).find((item) => !item.earned);
+
+  return (
+    <ProductCard>
+      <SectionHeading
+        eyebrow="Certificates"
+        title="Achievement evidence"
+        description="Private certificates for level growth and demonstrated skill mastery."
+        action={
+          <Link href="/achievements" className="text-[13px] font-medium text-[var(--muted)] underline-offset-4 hover:text-[#111111] hover:underline">
+            View library
+          </Link>
+        }
+      />
+      {loading ? (
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="squinia-skeleton h-28 rounded-xl" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">{error}</p>
+      ) : earned.length ? (
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {earned.map((item) => (
+            <Link
+              key={item.key}
+              href={`/achievements/${item.earned_id}`}
+              className="rounded-lg border border-[#b8e8c4] bg-[#f3fbf5] p-4 transition-colors hover:bg-[#ebf8ef]"
+            >
+              <StatusBadge tone="success">Earned</StatusBadge>
+              <p className="mt-3 text-[14px] font-semibold leading-5 text-[#111111]">{item.certificate_title}</p>
+              <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
+                {formatAchievementDate(item.earned_at)}
+              </p>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-lg border border-dashed border-[var(--rule-strong)] bg-[var(--field)]/35 p-5">
+          <p className="text-[14px] font-semibold text-[#111111]">No certificates earned yet</p>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">
+            {next ? `Closest target: ${next.certificate_title}. ${next.progress.label}.` : "Complete scored practice to unlock certificates."}
+          </p>
+        </div>
+      )}
+    </ProductCard>
   );
 }
 

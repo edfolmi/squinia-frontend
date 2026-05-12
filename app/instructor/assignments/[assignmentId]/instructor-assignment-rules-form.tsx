@@ -28,13 +28,16 @@ export function InstructorAssignmentRulesForm({ assignment }: Props) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const e = getEffectiveAssignmentRules(assignment.id, {
-      maxAttempts: assignment.maxAttempts,
-      minScorePercent: assignment.minScorePercent,
-    });
-    setEffective(e);
-    setMaxAttempts(String(e.maxAttempts));
-    setMinScorePercent(String(e.minScorePercent));
+    const timeout = window.setTimeout(() => {
+      const e = getEffectiveAssignmentRules(assignment.id, {
+        maxAttempts: assignment.maxAttempts,
+        minScorePercent: assignment.minScorePercent,
+      });
+      setEffective(e);
+      setMaxAttempts(String(e.maxAttempts));
+      setMinScorePercent(String(e.minScorePercent));
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [assignment.id, assignment.maxAttempts, assignment.minScorePercent]);
 
   function onSubmit(e: FormEvent) {

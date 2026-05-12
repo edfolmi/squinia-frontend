@@ -309,3 +309,32 @@ button:not(:disabled),
   height: 0.625rem;
   color: var(--field);
 }
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body:has(.certificate-print-root) .app-print-hidden,
+  body:has(.certificate-print-root) .certificate-actions {
+    display: none !important;
+  }
+
+  body:has(.certificate-print-root) main {
+    padding: 0 !important;
+  }
+
+  .certificate-print-root {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .certificate-sheet {
+    min-height: 100vh;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   ASSIGNMENT_RULES_STORAGE_KEY,
@@ -17,14 +17,22 @@ export function dispatchAssignmentRulesChanged(): void {
 }
 
 export function useEffectiveAssignmentRules(assignmentId: string, defaults: AssignmentRules): AssignmentRules {
-  const [rules, setRules] = useState<AssignmentRules>(defaults);
+  const defaultRules = useMemo(
+    () => ({
+      maxAttempts: defaults.maxAttempts,
+      minScorePercent: defaults.minScorePercent,
+    }),
+    [defaults.maxAttempts, defaults.minScorePercent],
+  );
+  const [rules, setRules] = useState<AssignmentRules>(defaultRules);
 
   const refresh = useCallback(() => {
-    setRules(getEffectiveAssignmentRules(assignmentId, defaults));
-  }, [assignmentId, defaults.maxAttempts, defaults.minScorePercent]);
+    setRules(getEffectiveAssignmentRules(assignmentId, defaultRules));
+  }, [assignmentId, defaultRules]);
 
   useEffect(() => {
-    refresh();
+    const timeout = window.setTimeout(refresh, 0);
+    return () => window.clearTimeout(timeout);
   }, [refresh]);
 
   useEffect(() => {

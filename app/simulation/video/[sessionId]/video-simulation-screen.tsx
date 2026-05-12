@@ -288,6 +288,7 @@ export function VideoSimulationScreen({
   const callElapsedRef = useRef(0);
 
   const media = useVideoSimulationMedia();
+  const { cameraStream, error, recording, screenStream, startCamera, startRecording } = media;
 
   const sessionShort = useMemo(
     () => (sessionId.length > 10 ? `${sessionId.slice(0, 6)}…` : sessionId),
@@ -386,18 +387,21 @@ export function VideoSimulationScreen({
     if (useBackendLiveKit) return;
     if (phase !== "live") return;
     let cancelled = false;
-    void (async () => {
+    const timeout = window.setTimeout(() => {
       setCameraBusy(true);
-      try {
-        await media.startCamera();
-      } finally {
-        if (!cancelled) setCameraBusy(false);
-      }
-    })();
+      void (async () => {
+        try {
+          await startCamera();
+        } finally {
+          if (!cancelled) setCameraBusy(false);
+        }
+      })();
+    }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
-  }, [phase, useBackendLiveKit, media.startCamera]);
+  }, [phase, useBackendLiveKit, startCamera]);
 
   /** Restart recording whenever live, not already recording, and capture tracks exist (e.g. after screen share toggles). */
   useEffect(() => {
@@ -409,15 +413,15 @@ export function VideoSimulationScreen({
       recordKickRef.current = false;
       return;
     }
-    if (media.recording) return;
-    if (!media.cameraStream && !media.screenStream) return;
-    if (media.error === "record_failed" || media.error === "record_not_supported") return;
+    if (recording) return;
+    if (!cameraStream && !screenStream) return;
+    if (error === "record_failed" || error === "record_not_supported") return;
 
     let cancelled = false;
     const t = window.setTimeout(() => {
-      if (cancelled || media.recording || recordKickRef.current) return;
+      if (cancelled || recording || recordKickRef.current) return;
       recordKickRef.current = true;
-      void media.startRecording().finally(() => {
+      void startRecording().finally(() => {
         recordKickRef.current = false;
       });
     }, 280);
@@ -428,11 +432,11 @@ export function VideoSimulationScreen({
   }, [
     phase,
     useBackendLiveKit,
-    media.cameraStream,
-    media.screenStream,
-    media.recording,
-    media.error,
-    media.startRecording,
+    cameraStream,
+    screenStream,
+    recording,
+    error,
+    startRecording,
   ]);
 
   useEffect(() => {
@@ -444,23 +448,23 @@ export function VideoSimulationScreen({
       if (pip) pip.srcObject = null;
       return;
     }
-    if (media.screenStream && main) {
-      main.srcObject = media.screenStream;
+    if (screenStream && main) {
+      main.srcObject = screenStream;
       main.muted = true;
       main.playsInline = true;
       void main.play().catch(() => {});
     } else if (main) {
       main.srcObject = null;
     }
-    if (media.cameraStream && pip) {
-      pip.srcObject = media.cameraStream;
+    if (cameraStream && pip) {
+      pip.srcObject = cameraStream;
       pip.muted = true;
       pip.playsInline = true;
       void pip.play().catch(() => {});
     } else if (pip) {
       pip.srcObject = null;
     }
-  }, [phase, useBackendLiveKit, media.screenStream, media.cameraStream]);
+  }, [phase, useBackendLiveKit, screenStream, cameraStream]);
 
   useEffect(() => {
     return () => {
@@ -470,7 +474,7 @@ export function VideoSimulationScreen({
     };
   }, []);
 
-  async function flushTranscriptQueue(drain = false) {
+  const flushTranscriptQueue = useCallback(async (drain = false) => {
     if (!useBackendLiveKit || transcriptSendingRef.current) return;
     transcriptSendingRef.current = true;
     try {
@@ -486,7 +490,7 @@ export function VideoSimulationScreen({
     } finally {
       transcriptSendingRef.current = false;
     }
-  }
+  }, [sessionId, useBackendLiveKit]);
 
   const queueTranscript = useCallback((item: LiveTranscriptIngestItem) => {
     if (!useBackendLiveKit) return;
@@ -496,7 +500,7 @@ export function VideoSimulationScreen({
       transcriptTimerRef.current = null;
       void flushTranscriptQueue(false);
     }, 700);
-  }, [useBackendLiveKit]);
+  }, [flushTranscriptQueue, useBackendLiveKit]);
 
   const handleTranscriptFinal = useCallback(
     (entry: {

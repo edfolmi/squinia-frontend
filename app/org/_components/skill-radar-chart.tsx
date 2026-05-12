@@ -81,7 +81,6 @@ export function SkillRadarChart({ profile, target, size = 220, caption }: Props)
         {axes.map((a, i) => {
           const p = pointFor(108, i);
           const tx = p.x - cx;
-          const ty = p.y - cy;
           const anchor = Math.abs(tx) < 8 ? "middle" : tx > 0 ? "start" : "end";
           return (
             <text

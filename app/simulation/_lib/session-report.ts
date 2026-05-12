@@ -439,8 +439,7 @@ export function buildStoredVideoReport(args: {
 }
 
 export function downloadEvaluationJson(report: SessionReportStored, filenameBase: string) {
-  const { recording: _r, ...rest } = report;
-  const json = JSON.stringify(rest, null, 2);
+  const json = JSON.stringify({ ...report, recording: undefined }, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

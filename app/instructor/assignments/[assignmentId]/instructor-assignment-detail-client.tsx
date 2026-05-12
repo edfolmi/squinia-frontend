@@ -88,7 +88,10 @@ export function InstructorAssignmentDetailClient() {
   }, [assignmentId]);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   if (!assignmentId) return <p className="text-[14px] text-[var(--muted)]">Missing id.</p>;

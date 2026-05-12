@@ -11,11 +11,12 @@ import { activeTenantBranding, defaultMembership, useSession } from "@/app/_lib/
 import { StudentProfileMenu } from "./student-profile-menu";
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/scenarios", label: "Scenarios" },
-  { href: "/sessions", label: "Sessions" },
-  { href: "/assignments", label: "Assigned" },
-  { href: "/settings/profile", label: "Account" },
+  { href: "/dashboard", label: "Dashboard", individualOnly: false },
+  { href: "/scenarios", label: "Scenarios", individualOnly: false },
+  { href: "/sessions", label: "Sessions", individualOnly: false },
+  { href: "/assignments", label: "Assigned", individualOnly: false },
+  { href: "/achievements", label: "Achievements", individualOnly: true },
+  { href: "/settings/profile", label: "Account", individualOnly: false },
 ] as const;
 
 function NavLink({ href, label }: { href: string; label: string }) {
@@ -44,6 +45,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
   const { session, loading, reload } = useSession();
   const membership = defaultMembership(session);
   const branding = activeTenantBranding(session);
+  const navItems = NAV.filter((item) => !item.individualOnly || membership?.account_kind === "individual");
 
   if (loading && !session) {
     return (
@@ -59,7 +61,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[var(--background)] text-[var(--foreground)] md:flex-row" style={brandingStyle(branding)}>
-      <aside className="shrink-0 border-b border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f4f7f0_100%)] md:sticky md:top-0 md:h-[100dvh] md:w-[17rem] md:border-b-0 md:border-r">
+      <aside className="app-print-hidden shrink-0 border-b border-[var(--rule)] bg-[linear-gradient(180deg,#ffffff_0%,#f4f7f0_100%)] md:sticky md:top-0 md:h-[100dvh] md:w-[17rem] md:border-b-0 md:border-r">
         <div className="flex items-center justify-between gap-3 px-4 py-4 md:flex-col md:items-stretch md:gap-5 md:px-5 md:py-6">
           <SquiniaBrandLockup
             href="/dashboard"
@@ -73,7 +75,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-4 md:pb-0" aria-label="Student">
-          {NAV.map((item) => (
+          {navItems.map((item) => (
             <NavLink key={item.href} href={item.href} label={item.label} />
           ))}
         </nav>
@@ -89,7 +91,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/92 px-4 backdrop-blur-md sm:px-6">
+        <header className="app-print-hidden sticky top-0 z-20 flex h-[60px] shrink-0 items-center justify-between border-b border-[var(--rule)] bg-[var(--surface)]/92 px-4 backdrop-blur-md sm:px-6">
           <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[var(--foreground)]">
             {membership?.tenant_name ?? "Learning workspace"}
           </p>

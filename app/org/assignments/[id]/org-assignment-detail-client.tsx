@@ -50,7 +50,10 @@ export function OrgAssignmentDetailClient() {
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   if (!id) return <p className="text-[14px] text-[var(--muted)]">Missing id.</p>;

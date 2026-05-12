@@ -47,10 +47,12 @@ export function SimulationTeamFeedbackDialog({
   const messageId = useId();
 
   useEffect(() => {
-    if (!open) {
+    if (open) return;
+    const timeout = window.setTimeout(() => {
       setMessage("");
       setSent(false);
-    }
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [open]);
 
   useEffect(() => {

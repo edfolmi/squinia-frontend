@@ -32,7 +32,10 @@ export function PersonaEditPageClient() {
   }, [personaId]);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   if (!personaId) return <p className="text-[14px] text-[var(--muted)]">Missing persona id.</p>;

@@ -11,16 +11,29 @@ type Props = {
   scenarios: { id: string; title: string }[];
 };
 
-type CreateResult = { assignment: { id: string } };
+type CreateResult = {
+  assignment: { id: string };
+  assignment_group_id?: string | null;
+  created_count?: number;
+};
+
+function defaultDueValue(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 7);
+  date.setHours(17, 0, 0, 0);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [cohortId, setCohortId] = useState(cohorts[0]?.id ?? "");
   const [scenarioId, setScenarioId] = useState(scenarios[0]?.id ?? "");
-  const [due, setDue] = useState("2026-04-30T17:00");
+  const [due, setDue] = useState(defaultDueValue);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canSubmit = Boolean(title.trim() && cohortId && scenarioId && due);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -29,12 +42,13 @@ export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
     try {
       const res = await v1.post<CreateResult>("assignments", {
         title,
-        assigned_to: cohortId,
+        cohort_id: cohortId,
         type: "REFLECTION",
         instructions: `Scenario: ${scenarioId}`,
         content: {
           cohort_id: cohortId,
           scenario_id: scenarioId,
+          scenario_title: scenarios.find((scenario) => scenario.id === scenarioId)?.title ?? "",
         },
         due_at: new Date(due).toISOString(),
       });
@@ -42,7 +56,7 @@ export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
         setError(res.message);
         return;
       }
-      router.push(`/org/assignments/${res.data.assignment.id}?created=1`);
+      router.push(`/org/assignments?created_count=${res.data.created_count ?? 1}`);
     } finally {
       setSubmitting(false);
     }
@@ -68,7 +82,7 @@ export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
       </div>
       <div>
         <label htmlFor="cohort" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--faint)]">
-          Assign to (cohort member)
+          Assign to cohort
         </label>
         <select
           id="cohort"
@@ -116,11 +130,16 @@ export function OrgAssignmentCreateForm({ cohorts, scenarios }: Props) {
       </div>
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || !canSubmit}
         className="sim-btn-accent w-full px-6 py-3 font-mono text-[10px] uppercase disabled:opacity-50 sm:w-auto"
       >
         {submitting ? "Creating…" : "Create assignment"}
       </button>
+      {cohorts.length === 0 || scenarios.length === 0 ? (
+        <p className="text-[13px] leading-5 text-[var(--muted)]">
+          Create at least one cohort with enrolled students and one scenario before assigning work.
+        </p>
+      ) : null}
     </form>
   );
 }

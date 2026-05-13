@@ -11,6 +11,7 @@ type Props = {
   scenarioId: string;
   kind: SimulationKind;
   cohortId?: string | null;
+  assignmentId?: string | null;
   className?: string;
   children: React.ReactNode;
   disabled?: boolean;
@@ -27,6 +28,7 @@ export function StartSimulationButton({
   scenarioId,
   kind,
   cohortId,
+  assignmentId,
   className,
   children,
   disabled,
@@ -53,7 +55,7 @@ export function StartSimulationButton({
                 : typeof window !== "undefined"
                   ? window.localStorage.getItem("squinia:selectedCohortId")
                   : null;
-            const started = await startBackendSimulationSession({ scenarioId, mode, cohortId: selectedCohortId });
+            const started = await startBackendSimulationSession({ scenarioId, mode, cohortId: selectedCohortId, assignmentId });
             setBusy(false);
             if (!started) return;
             router.push(buildSimulationPath(started.session_id, kind));

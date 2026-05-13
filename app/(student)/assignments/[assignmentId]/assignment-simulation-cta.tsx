@@ -30,6 +30,7 @@ export function AssignmentSimulationCta({
       <StartSimulationButton
         scenarioId={scenarioId}
         kind={kind}
+        assignmentId={assignmentId}
         disabled={atMax}
         title={
           atMax

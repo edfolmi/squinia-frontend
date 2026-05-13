@@ -22,10 +22,12 @@ export async function startBackendSimulationSession(input: {
   scenarioId: string;
   mode: "TEXT" | "VOICE" | "VIDEO";
   cohortId?: string | null;
+  assignmentId?: string | null;
 }): Promise<BackendSessionStart | null> {
   const res = await v1.post<BackendSessionStart>("sessions", {
     scenario_id: scenarioIdForSessionApi(input.scenarioId),
     cohort_id: input.cohortId || undefined,
+    assignment_id: input.assignmentId || undefined,
     mode: input.mode,
   });
   if (!res.ok) return null;

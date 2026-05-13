@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { defaultMembership, isOrgOperatorRole, useSession } from "@/app/_lib/use-session";
 import { v1, type ItemsData } from "@/app/_lib/v1-client";
 
 import { assignmentSimulationKindLabel, type SimulationKind } from "../_lib/student-mock-data";
@@ -13,12 +14,13 @@ type AssignmentApi = {
   status: string;
   due_at: string | null;
   type: string;
+  assigned_to?: string;
   content?: Record<string, unknown>;
 };
 
 function statusLabel(s: string) {
   const x = s.toLowerCase();
-  if (x === "pending") return "Pending";
+  if (x === "pending") return "Not started";
   if (x === "in_progress") return "In progress";
   if (x === "submitted") return "Submitted";
   if (x === "graded") return "Graded";
@@ -42,23 +44,57 @@ function inferKind(content: Record<string, unknown> | undefined): SimulationKind
   return "chat";
 }
 
+function assignmentGroupId(assignment: AssignmentApi): string | null {
+  const value = assignment.content?.assignment_group_id;
+  return typeof value === "string" && value ? value : null;
+}
+
+function assignmentCohortName(assignment: AssignmentApi): string | null {
+  const value = assignment.content?.cohort_name;
+  return typeof value === "string" && value ? value : null;
+}
+
+function groupCohortAssignments(items: AssignmentApi[]): (AssignmentApi & { learner_count?: number })[] {
+  const byGroup = new Map<string, AssignmentApi & { learner_count?: number }>();
+  for (const item of items) {
+    const groupId = assignmentGroupId(item);
+    if (!groupId) {
+      byGroup.set(item.id, { ...item, learner_count: 1 });
+      continue;
+    }
+    const existing = byGroup.get(groupId);
+    if (existing) {
+      existing.learner_count = (existing.learner_count ?? 1) + 1;
+      continue;
+    }
+    byGroup.set(groupId, { ...item, learner_count: 1 });
+  }
+  return Array.from(byGroup.values());
+}
+
 export function AssignmentsPageClient() {
   const [items, setItems] = useState<AssignmentApi[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { session, loading: sessionLoading } = useSession();
+  const membership = defaultMembership(session);
+  const operatorPreview = isOrgOperatorRole(membership?.org_role ?? session?.default_org_role);
 
   const load = useCallback(async () => {
+    if (sessionLoading) return;
     setLoading(true);
     setError(null);
-    const res = await v1.get<ItemsData<AssignmentApi>>("assignments", { assigned_to_me: true, limit: 50, page: 1 });
+    const query = operatorPreview ? { limit: 50, page: 1 } : { assigned_to_me: true, limit: 50, page: 1 };
+    const res = await v1.get<ItemsData<AssignmentApi>>("assignments", query);
     if (!res.ok) {
       setError(res.message);
       setItems([]);
     } else {
-      setItems(res.data.items ?? []);
+      const rows = res.data.items ?? [];
+      setItems(operatorPreview ? groupCohortAssignments(rows) : rows);
     }
     setLoading(false);
-  }, []);
+  }, [operatorPreview, sessionLoading]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -70,9 +106,13 @@ export function AssignmentsPageClient() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">Assigned simulations</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.03em] text-[#111111] sm:text-3xl">
+          {operatorPreview ? "Learner assignment preview" : "Assigned simulations"}
+        </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-[var(--muted)]">
-          Work your instructor assigned in this tenant. Open a row for details and to start the linked simulation.
+          {operatorPreview
+            ? "Cohort assignment groups visible to learners in this organisation. Open a row in the organiser view to inspect progress."
+            : "Work your instructor assigned in this tenant. Open a row for details and to start the linked simulation."}
         </p>
       </div>
 
@@ -83,15 +123,18 @@ export function AssignmentsPageClient() {
       {loading ? (
         <p className="text-[14px] text-[var(--muted)]">Loading…</p>
       ) : items.length === 0 ? (
-        <p className="text-[14px] text-[var(--muted)]">No assignments yet.</p>
+        <p className="text-[14px] text-[var(--muted)]">
+          {operatorPreview ? "No cohort assignments have been created in this workspace yet." : "No assignments yet."}
+        </p>
       ) : (
         <ul className="space-y-3">
           {items.map((a) => {
             const kind = inferKind(a.content);
+            const learnerCount = "learner_count" in a && typeof a.learner_count === "number" ? a.learner_count : null;
             return (
               <li key={a.id}>
                 <Link
-                  href={`/assignments/${a.id}`}
+                  href={operatorPreview ? `/org/assignments/${a.id}` : `/assignments/${a.id}`}
                   className="flex flex-col gap-3 rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-4 shadow-[0_4px_24px_-16px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-[0_8px_32px_-16px_rgba(0,0,0,0.1)] sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
@@ -101,7 +144,11 @@ export function AssignmentsPageClient() {
                         {assignmentSimulationKindLabel(kind)}
                       </span>
                     </div>
-                    <p className="mt-1 text-[13px] text-[var(--muted)]">{a.type.replace(/_/g, " ")}</p>
+                    <p className="mt-1 text-[13px] text-[var(--muted)]">
+                      {operatorPreview
+                        ? `${assignmentCohortName(a) ?? "Cohort assignment"}${learnerCount ? ` - ${learnerCount} learner${learnerCount === 1 ? "" : "s"}` : ""}`
+                        : a.type.replace(/_/g, " ")}
+                    </p>
                     <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--faint)]">
                       {a.due_at ? (
                         <>

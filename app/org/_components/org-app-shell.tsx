@@ -135,10 +135,11 @@ export function OrgAppShell({ children }: { children: React.ReactNode }) {
             Scenario intelligence for every cohort, coach, and team lead.
           </p>
           <Link
-            href="/dashboard"
+            href="/dashboard" target="_blank"
             className="mt-1 text-[12px] font-semibold text-[#0f6f34] underline-offset-4 hover:text-[var(--foreground)] hover:underline"
+            title="Open your learner-facing workspace for this organisation."
           >
-            Student view
+            Learner workspace
           </Link>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-4 md:pb-6" aria-label="Organization">

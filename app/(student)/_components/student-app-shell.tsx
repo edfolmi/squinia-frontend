@@ -65,7 +65,7 @@ export function StudentAppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center justify-between gap-3 px-4 py-4 md:flex-col md:items-stretch md:gap-5 md:px-5 md:py-6">
           <SquiniaBrandLockup
             href="/dashboard"
-            context="Student"
+            context="Learner"
             orientation="inline"
             logoUrl={branding.logo_url}
             brandName={membership?.tenant_name ?? "Squinia"}

@@ -25,6 +25,8 @@ type AssignmentItem = {
   status: string;
   due_at: string | null;
   type: string;
+  assigned_to?: string;
+  learner_count?: number;
   content?: Record<string, unknown>;
   session_id?: string | null;
 };
@@ -154,6 +156,38 @@ function assignmentCohortId(assignment: AssignmentItem): string | null {
     if (typeof value === "string" && value) return value;
   }
   return null;
+}
+
+function assignmentGroupId(assignment: AssignmentItem): string | null {
+  const value = assignment.content?.assignment_group_id;
+  return typeof value === "string" && value ? value : null;
+}
+
+function assignmentCohortName(assignment: AssignmentItem): string | null {
+  const value = assignment.content?.cohort_name;
+  return typeof value === "string" && value ? value : null;
+}
+
+function isOperatorRole(role?: string | null): boolean {
+  return role === "ORG_OWNER" || role === "ORG_ADMIN" || role === "INSTRUCTOR";
+}
+
+function groupCohortAssignments(items: AssignmentItem[]): AssignmentItem[] {
+  const byGroup = new Map<string, AssignmentItem>();
+  for (const item of items) {
+    const groupId = assignmentGroupId(item);
+    if (!groupId) {
+      byGroup.set(item.id, { ...item, learner_count: 1 });
+      continue;
+    }
+    const existing = byGroup.get(groupId);
+    if (existing) {
+      existing.learner_count = (existing.learner_count ?? 1) + 1;
+      continue;
+    }
+    byGroup.set(groupId, { ...item, learner_count: 1 });
+  }
+  return Array.from(byGroup.values());
 }
 
 function scoreLabel(value?: number | null): string {
@@ -679,6 +713,7 @@ export function DashboardClient() {
     const activeMembership =
       meRes.data.memberships.find((m) => m.tenant_id === meRes.data.default_tenant_id) ??
       meRes.data.memberships[0];
+    const operatorPreview = isOperatorRole(activeMembership?.org_role);
     if (activeMembership?.account_kind === "individual") {
       const homeRes = await v1.get<LearnerHome>("me/learner-home");
       setLearnerHome(homeRes.ok ? homeRes.data : null);
@@ -707,7 +742,7 @@ export function DashboardClient() {
     }
 
     const [asgRes, sessRes, sumRes] = await Promise.all([
-      v1.get<ItemsData<AssignmentItem>>("assignments", { assigned_to_me: true, limit: 20, page: 1 }),
+      v1.get<ItemsData<AssignmentItem>>("assignments", operatorPreview ? { limit: 20, page: 1 } : { assigned_to_me: true, limit: 20, page: 1 }),
       v1.get<ItemsData<SessionItem>>("sessions", { limit: 15, page: 1, mine: true, ...(cohortId ? { cohort_id: cohortId } : {}) }),
       cohortId
         ? v1.get<{ summary: UserSummary }>(`analytics/me/cohorts/${cohortId}/summary`)
@@ -715,7 +750,7 @@ export function DashboardClient() {
     ]);
 
     if (asgRes.ok) {
-      const items = asgRes.data.items ?? [];
+      const items = operatorPreview ? groupCohortAssignments(asgRes.data.items ?? []) : asgRes.data.items ?? [];
       setAssignments(cohortId ? items.filter((item) => assignmentCohortId(item) === cohortId || assignmentCohortId(item) === null) : items);
     }
     else setAssignments([]);
@@ -744,6 +779,10 @@ export function DashboardClient() {
   }
 
   const latestScore = summary?.avg_score != null ? Math.round(summary.avg_score) : null;
+  const activeMembership =
+    me?.memberships.find((m) => m.tenant_id === me.default_tenant_id) ??
+    me?.memberships[0];
+  const operatorPreview = isOperatorRole(activeMembership?.org_role);
   const selectedCohort = cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null;
   const cohortScoreTrend = buildMockCohortScoreTrend(summary, sessions);
   const sessionActivityTrend = buildSessionActivityTrend(sessions);
@@ -769,7 +808,9 @@ export function DashboardClient() {
               Turn pressure into reps before the real conversation.
             </h1>
             <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[var(--muted)]">
-              {me?.user?.full_name ? (
+              {operatorPreview ? (
+                <>Preview the learner-facing assignment flow for this organisation without changing staff permissions.</>
+              ) : me?.user?.full_name ? (
                 <>
                   Welcome back, <span className="font-semibold text-[#111111]">{me.user.full_name}</span>. Pick up
                   assigned simulations, review your latest evidence, and keep sharpening the moments that matter.
@@ -797,7 +838,9 @@ export function DashboardClient() {
                 <p className="text-2xl font-semibold text-[#0b2014]">
                   {loading ? "--" : assignments.length}
                 </p>
-                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--faint)]">Assigned</p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--faint)]">
+                  {operatorPreview ? "Groups" : "Assigned"}
+                </p>
               </div>
               <div>
                 <p className="text-2xl font-semibold text-[#0b2014]">
@@ -863,8 +906,12 @@ export function DashboardClient() {
       <section className="rounded-2xl border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[0_6px_36px_-18px_rgba(17,17,17,0.08)] sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">Assigned to you</p>
-            <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em]">Assignments</h2>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--faint)]">
+              {operatorPreview ? "Learner preview" : "Assigned to you"}
+            </p>
+            <h2 className="mt-2 text-lg font-semibold tracking-[-0.02em]">
+              {operatorPreview ? "Cohort assignment groups" : "Assignments"}
+            </h2>
           </div>
           <Link
             href="/assignments"
@@ -879,8 +926,12 @@ export function DashboardClient() {
           <div className="mt-6">
             <EmptyState
               title="No assignments yet"
-              message="When your organisation assigns a simulation, it will appear here with its due date and practice mode."
-              action={{ href: "/scenarios", label: "Browse scenarios" }}
+              message={
+                operatorPreview
+                  ? "Create a cohort assignment from the organiser dashboard to see the learner-facing preview here."
+                  : "When your organisation assigns a simulation, it will appear here with its due date and practice mode."
+              }
+              action={operatorPreview ? { href: "/org/assignments/new", label: "Create assignment" } : { href: "/scenarios", label: "Browse scenarios" }}
             />
           </div>
         ) : (
@@ -893,7 +944,9 @@ export function DashboardClient() {
                 <div className="min-w-0">
                   <p className="font-medium text-[#111111]">{a.title}</p>
                   <p className="mt-1 text-[13px] text-[var(--muted)]">
-                    {a.type.replace(/_/g, " ").toLowerCase()} - {a.status.toLowerCase().replace(/_/g, " ")}
+                    {operatorPreview
+                      ? `${assignmentCohortName(a) ?? "Cohort assignment"}${a.learner_count ? ` - ${a.learner_count} learner${a.learner_count === 1 ? "" : "s"}` : ""}`
+                      : `${a.type.replace(/_/g, " ").toLowerCase()} - ${a.status.toLowerCase().replace(/_/g, " ")}`}
                     {a.due_at ? (
                       <>
                         {" "}
@@ -906,10 +959,10 @@ export function DashboardClient() {
                   </p>
                 </div>
                 <Link
-                  href={`/assignments/${a.id}`}
+                  href={operatorPreview ? `/org/assignments/${a.id}` : `/assignments/${a.id}`}
                   className="sim-btn-accent shrink-0 self-start px-5 py-2.5 text-center font-mono text-[10px] uppercase sm:self-auto"
                 >
-                  Open
+                  {operatorPreview ? "Review" : "Open"}
                 </Link>
               </li>
             ))}

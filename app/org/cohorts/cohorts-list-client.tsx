@@ -147,14 +147,14 @@ export function CohortsListClient() {
                           : null}
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 font-mono text-[12px] tabular-nums sm:min-w-40">
-                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-2">
-                        <p className="text-[var(--faint)]">Avg score</p>
-                        <p className="mt-0.5 font-medium text-[#166534]">{avg != null ? `${avg}%` : "--"}</p>
+                    <div className="grid grid-cols-2 gap-3 tabular-nums sm:min-w-44">
+                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-3 text-center">
+                        <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--faint)]">Avg score</p>
+                        <p className="mt-2 text-[15px] font-semibold text-[#166534]">{avg != null ? `${avg}%` : "--"}</p>
                       </div>
-                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-2">
-                        <p className="text-[var(--faint)]">Completion</p>
-                        <p className="mt-0.5 font-medium text-[var(--foreground)]">{completion != null ? `${completion}%` : "--"}</p>
+                      <div className="rounded-xl border border-[var(--rule)] bg-[var(--field)]/35 px-3 py-3 text-center">
+                        <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--faint)]">Completion rate</p>
+                        <p className="mt-2 text-[15px] font-semibold text-[var(--foreground)]">{completion != null ? `${completion}%` : "--"}</p>
                       </div>
                     </div>
                   </div>

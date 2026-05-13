@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { AUTH_SESSION_COOKIE } from "@/app/(auth)/_lib/auth-tokens";
 
 const PUBLIC_PATHS = new Set([
+  "/",
   "/login",
   "/register",
   "/forgot-password",

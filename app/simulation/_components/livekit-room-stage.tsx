@@ -526,14 +526,8 @@ export function LiveKitRoomStage({
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center text-white">
-            <PersonaAvatar
-              persona={{ name: remoteName, avatarUrl: remoteAvatarUrl ?? "" }}
-              className="flex h-24 w-24 items-center justify-center rounded-full border border-white/15 bg-white/10 text-2xl font-semibold text-white shadow-inner ring-2 ring-white/10"
-            />
-            <p className="mt-4 text-lg font-semibold">{remoteName}</p>
-            {remoteRole ? <p className="mt-1 text-[13px] text-white/55">{remoteRole}</p> : null}
             <p className="mt-5 max-w-xs text-[12px] leading-6 text-white/45">
-              Stay in the scenario and speak naturally. Your transcript will be used for coaching after the call.
+              On call.
             </p>
             <RoomAudioRenderer />
           </div>

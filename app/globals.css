@@ -173,6 +173,45 @@ button:not(:disabled),
   }
 }
 
+@keyframes squinia-leaf-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-4deg);
+  }
+  50% {
+    transform: translate3d(0.55rem, -0.45rem, 0) rotate(7deg);
+  }
+}
+
+@keyframes squinia-flight-path {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -112;
+  }
+}
+
+@keyframes squinia-panel-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.35rem);
+  }
+}
+
+@keyframes squinia-nature-photo {
+  0%,
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.035) translate3d(0, -0.25rem, 0);
+  }
+}
+
 .sim-fade-in {
   animation: sim-fade-in 0.35s ease-out both;
 }
@@ -183,6 +222,34 @@ button:not(:disabled),
 
 .sim-disposition-label {
   animation: sim-disposition 0.2s ease-out both;
+}
+
+.home-leaf {
+  animation: squinia-leaf-drift 6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.home-leaf-delay {
+  animation-delay: -2.2s;
+}
+
+.home-leaf-slow {
+  animation-duration: 8s;
+  animation-delay: -1s;
+}
+
+.home-flight-path {
+  stroke-dasharray: 14 18;
+  animation: squinia-flight-path 8s linear infinite;
+}
+
+.home-panel-float {
+  animation: squinia-panel-float 7s ease-in-out infinite;
+}
+
+.home-nature-photo {
+  animation: squinia-nature-photo 9s ease-in-out infinite;
+  transform-origin: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -203,6 +270,13 @@ button:not(:disabled),
   }
 
   .squinia-skeleton {
+    animation: none !important;
+  }
+
+  .home-leaf,
+  .home-flight-path,
+  .home-panel-float,
+  .home-nature-photo {
     animation: none !important;
   }
 }

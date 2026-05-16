@@ -13,7 +13,8 @@ export const metadata: Metadata = {
     "Squinia helps bootcamp teams run realistic AI role-play simulations, capture transcripts, and return rubric-backed coaching for every learner.",
 };
 
-const walkthroughEmbedUrl = youtubeEmbedSrc(process.env.NEXT_PUBLIC_SQUINIA_WALKTHROUGH_EMBED_URL);
+const defaultWalkthroughEmbedUrl = "https://www.loom.com/embed/1e2c5d0fbc534a2baaf815a131b548b8";
+const walkthroughEmbedUrl = videoEmbedSrc(process.env.NEXT_PUBLIC_SQUINIA_WALKTHROUGH_EMBED_URL) ?? defaultWalkthroughEmbedUrl;
 
 const alternatives = [
   {
@@ -63,11 +64,14 @@ const workflow = [
   "Use the report to coach the next attempt.",
 ];
 
-function youtubeEmbedSrc(raw: string | undefined): string | null {
+function videoEmbedSrc(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
     const url = new URL(raw.trim());
     const host = url.hostname.replace(/^www\./, "");
+    if (host === "loom.com" && url.pathname.startsWith("/embed/")) {
+      return url.href;
+    }
     if ((host === "youtube.com" || host === "youtube-nocookie.com") && url.pathname.startsWith("/embed/")) {
       return url.href;
     }
@@ -97,14 +101,6 @@ function LeafIcon({ className = "" }: { className?: string }) {
         fill="currentColor"
       />
       <path d="M4.5 19.2c2.6-4.9 6.1-7.8 11.1-9.8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function PlayIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path d="M8 5.6v12.8L18.6 12 8 5.6Z" fill="currentColor" />
     </svg>
   );
 }
@@ -357,10 +353,9 @@ function WalkthroughVideo() {
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
             <SectionLabel>Walkthrough</SectionLabel>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight">Show the full training loop in one frame.</h2>
+            {/* <h2 className="mt-3 text-3xl font-semibold leading-tight"></h2>
             <p className="mt-4 text-[15px] leading-7 text-[var(--muted)]">
-              The homepage is ready for a YouTube walkthrough: operators can see how scenarios, simulations, transcripts, and coaching connect before they book a demo.
-            </p>
+            </p> */}
           </div>
           <Link href="#demo" className="sim-btn-accent self-start px-5 py-3 font-mono text-[10px] uppercase sm:self-auto">
             Book a demo
@@ -368,32 +363,13 @@ function WalkthroughVideo() {
         </div>
         <div className="overflow-hidden rounded-lg border border-[var(--rule-strong)] bg-[#101711] shadow-[0_30px_110px_-70px_rgba(17,21,17,0.65)]">
           <div className="aspect-video">
-            {walkthroughEmbedUrl ? (
-              <iframe
-                className="h-full w-full"
-                src={walkthroughEmbedUrl}
-                title="Squinia product walkthrough"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            ) : (
-              <div className="relative grid h-full place-items-center overflow-hidden bg-[#101711] text-white">
-                <svg className="absolute inset-0 h-full w-full opacity-30" viewBox="0 0 1200 675" preserveAspectRatio="none" aria-hidden>
-                  <path d="M0 508C195 389 304 449 457 332c176-134 284-178 439-112 123 52 203 36 304-42" stroke="#32a852" strokeWidth="2" fill="none" />
-                  <path d="M0 590C209 511 321 549 525 421c148-93 258-108 396-35 102 54 174 62 279 12" stroke="#83b7ff" strokeWidth="2" fill="none" />
-                </svg>
-                <div className="relative mx-auto max-w-md px-6 text-center">
-                  <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white text-[var(--accent)] shadow-[0_16px_44px_-24px_rgba(255,255,255,0.85)]">
-                    <PlayIcon className="h-8 w-8" />
-                  </span>
-                  <p className="mt-6 font-mono text-[10px] uppercase text-[#b8e8c4]">Squinia walkthrough</p>
-                  <h3 className="mt-2 text-3xl font-semibold leading-tight">From scenario to scorecard.</h3>
-                  <p className="mt-3 text-[14px] leading-6 text-white/72">
-                    A polished video stage for the YouTube walkthrough, framed to feel like the product rather than a pasted screenshot.
-                  </p>
-                </div>
-              </div>
-            )}
+            <iframe
+              className="h-full w-full"
+              src={walkthroughEmbedUrl}
+              title="Squinia product walkthrough"
+              allow="fullscreen; picture-in-picture"
+              allowFullScreen
+            />
           </div>
         </div>
       </div>

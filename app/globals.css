@@ -212,6 +212,75 @@ button:not(:disabled),
   }
 }
 
+@keyframes squinia-value-card {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.28rem);
+  }
+}
+
+@keyframes squinia-value-trail {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -84;
+  }
+}
+
+@keyframes squinia-value-row {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(0.18rem);
+  }
+}
+
+@keyframes squinia-value-progress {
+  0%,
+  100% {
+    transform: scaleX(0.78);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes squinia-value-mode {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.24rem);
+  }
+}
+
+@keyframes squinia-value-score-bar {
+  0%,
+  100% {
+    transform: scaleY(0.82);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes squinia-evidence-scan {
+  0%,
+  100% {
+    opacity: 0.76;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .sim-fade-in {
   animation: sim-fade-in 0.35s ease-out both;
 }
@@ -252,6 +321,49 @@ button:not(:disabled),
   transform-origin: center;
 }
 
+.home-value-card {
+  animation: squinia-value-card 9s ease-in-out infinite;
+}
+
+.home-value-card:nth-child(2) {
+  animation-delay: -2.4s;
+}
+
+.home-value-card:nth-child(3) {
+  animation-delay: -4.8s;
+}
+
+.home-value-trail {
+  stroke-dasharray: 12 16;
+  animation: squinia-value-trail 7.5s linear infinite;
+}
+
+.home-value-trail-delay {
+  animation-delay: -2.3s;
+}
+
+.home-value-scenario-row {
+  animation: squinia-value-row 6.8s ease-in-out infinite;
+}
+
+.home-value-progress {
+  animation: squinia-value-progress 5.4s ease-in-out infinite;
+  transform-origin: left center;
+}
+
+.home-value-mode {
+  animation: squinia-value-mode 6s ease-in-out infinite;
+}
+
+.home-value-score-bar {
+  animation: squinia-value-score-bar 5.8s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.home-evidence-scan {
+  animation: squinia-evidence-scan 4.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sim-fade-in,
   .sim-live-panel,
@@ -276,7 +388,14 @@ button:not(:disabled),
   .home-leaf,
   .home-flight-path,
   .home-panel-float,
-  .home-nature-photo {
+  .home-nature-photo,
+  .home-value-card,
+  .home-value-trail,
+  .home-value-scenario-row,
+  .home-value-progress,
+  .home-value-mode,
+  .home-value-score-bar,
+  .home-evidence-scan {
     animation: none !important;
   }
 }

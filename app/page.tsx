@@ -41,19 +41,28 @@ const alternatives = [
 
 const valuePillars = [
   {
-    label: "Create",
-    title: "Reusable scenarios",
-    body: "Operators build interview, escalation, and workplace communication scenarios once, then assign them across cohorts.",
-  },
-  {
     label: "Perform",
     title: "AI personas across modes",
     body: "Learners practice with named personas in chat, phone, or video, with the interaction shaped by the scenario.",
+    visual: "persona",
+    tone:
+      "border-[#b6dfdd] bg-[linear-gradient(180deg,#dff8f5_0%,#bdecea_60%,#a8ddda_100%)] text-[#0d1818]",
+  },
+  {
+    label: "Create",
+    title: "Reusable scenarios",
+    body: "Operators build interview, escalation, and workplace communication scenarios once, then assign them across cohorts.",
+    visual: "scenario",
+    tone:
+      "border-[#eadfa6] bg-[linear-gradient(180deg,#fff8d8_0%,#fff1b8_58%,#f7e8a6_100%)] text-[#16130c]",
   },
   {
     label: "Improve",
     title: "Evidence-backed coaching",
     body: "Transcripts are scored against rubrics, then turned into specific feedback tied to what the learner said.",
+    visual: "evidence",
+    tone:
+      "border-[#b9e4bf] bg-[linear-gradient(180deg,#e0f8df_0%,#c6efca_60%,#b5e6bf_100%)] text-[#0f180f]",
   },
 ];
 
@@ -163,6 +172,102 @@ function NatureField() {
       <LeafIcon className="home-leaf absolute left-[9%] top-[18%] h-7 w-7 text-[var(--accent)] opacity-55" />
       <LeafIcon className="home-leaf home-leaf-delay absolute right-[14%] top-[34%] h-6 w-6 text-[#175cd3] opacity-35" />
       <LeafIcon className="home-leaf home-leaf-slow absolute bottom-[18%] left-[39%] h-5 w-5 text-[#d7a529] opacity-40" />
+    </div>
+  );
+}
+
+function ModeSignal({ label, tone, className = "" }: { label: string; tone: string; className?: string }) {
+  return (
+    <div
+      className={[
+        "home-value-mode absolute flex items-center gap-2 rounded-full border border-white/70 bg-white/74 px-3 py-2 text-[11px] font-semibold shadow-[0_16px_36px_-28px_rgba(17,21,17,0.55)] backdrop-blur",
+        className,
+      ].join(" ")}
+    >
+      <span className={["h-2.5 w-2.5 rounded-full", tone].join(" ")} />
+      {label}
+    </div>
+  );
+}
+
+function ValuePillarVisual({ type }: { type: string }) {
+  if (type === "scenario") {
+    return (
+      <div className="relative h-[15.5rem] overflow-hidden rounded-lg border border-white/72 bg-[rgba(255,255,255,0.48)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+        <svg className="absolute inset-0 h-full w-full text-[#cf9b25]/45" viewBox="0 0 380 250" preserveAspectRatio="none" aria-hidden>
+          <path className="home-value-trail" d="M47 204C99 143 135 178 180 113c34-48 82-60 146-52" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <path className="home-value-trail home-value-trail-delay" d="M20 118c64 14 96-18 137-48 50-36 90-34 154-17" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        <div className="relative flex items-center justify-between">
+          <p className="font-mono text-[9px] uppercase text-[#7a661b]">Scenario library</p>
+          <span className="rounded-full bg-white/78 px-3 py-1 font-mono text-[8px] uppercase text-[#7a661b]">Ready</span>
+        </div>
+        <div className="relative mt-8 grid gap-3">
+          {["Interview loop", "Escalation call", "Workplace update"].map((item, index) => (
+            <div
+              key={item}
+              className="home-value-scenario-row flex items-center gap-3 rounded-lg border border-white/72 bg-white/76 p-3 shadow-[0_14px_32px_-28px_rgba(74,57,10,0.72)]"
+              style={{ animationDelay: `${index * 0.22}s` }}
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-[#f7d75e]/40 text-[#8a6b09]">
+                <LeafIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold">{item}</p>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#efe4aa]">
+                  <span className="home-value-progress block h-full rounded-full bg-[#32a852]" style={{ width: `${68 + index * 8}%` }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "persona") {
+    return (
+      <div className="relative h-[15.5rem] overflow-hidden rounded-lg border border-white/72 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.9),rgba(255,255,255,0.26)_50%,rgba(255,255,255,0.08)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+        <div className="absolute left-1/2 top-10 h-36 w-36 -translate-x-1/2 rounded-full border border-white/80 bg-white/24" />
+        <div className="absolute left-1/2 top-[4.3rem] h-24 w-24 -translate-x-1/2 rounded-full border border-white/80 bg-white/34" />
+        <div className="relative mx-auto mt-8 max-w-[12rem]">
+          <NadiaPersonaAvatar />
+          <p className="mt-3 text-center text-[13px] font-semibold">Nadia Chen</p>
+          <p className="text-center text-[11px] text-[#3d5f60]">Senior PM persona</p>
+        </div>
+        <ModeSignal label="Chat" tone="bg-[#32a852]" className="left-5 top-7" />
+        <ModeSignal label="Phone" tone="bg-[#d7a529]" className="right-5 top-12" />
+        <ModeSignal label="Video" tone="bg-[#175cd3]" className="bottom-6 left-1/2 -translate-x-1/2" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-[15.5rem] overflow-hidden rounded-lg border border-white/72 bg-[rgba(255,255,255,0.48)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[9px] uppercase text-[#21692f]">Evidence report</p>
+          <p className="mt-2 text-[26px] font-semibold leading-none text-[#111511]">84</p>
+        </div>
+        <div className="grid h-14 w-14 place-items-center rounded-full bg-white/78 text-[12px] font-semibold text-[#21692f] shadow-[0_14px_32px_-26px_rgba(17,21,17,0.5)]">
+          Score
+        </div>
+      </div>
+      <div className="mt-6 grid grid-cols-4 items-end gap-3">
+        {[54, 78, 64, 88].map((height, index) => (
+          <div key={height} className="flex h-24 items-end rounded-full bg-white/42 px-1.5 pb-1.5">
+            <span
+              className="home-value-score-bar block w-full rounded-full bg-[linear-gradient(180deg,#32a852_0%,#1e9a9a_100%)]"
+              style={{ height: `${height}%`, animationDelay: `${index * 0.18}s` }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="home-evidence-scan absolute inset-x-5 bottom-5 space-y-2 rounded-lg bg-white/62 p-3">
+        <span className="block h-1.5 w-10 rounded-full bg-[#32a852]/45" />
+        <span className="block h-1.5 w-full rounded-full bg-[#d8e8d7]" />
+        <span className="block h-1.5 w-3/4 rounded-full bg-[#d8e8d7]" />
+      </div>
     </div>
   );
 }
@@ -449,24 +554,50 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-b border-[var(--rule)]">
-        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-          <div className="max-w-2xl">
-            <SectionLabel>Unique value</SectionLabel>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight">A training grove, not another blank prompt box.</h2>
-            <p className="mt-4 text-[15px] leading-7 text-[var(--muted)]">
-              The product holds the whole performance record together: scenario design, persona behavior, live practice, transcript persistence, and evidence-backed coaching.
+      <section className="relative overflow-hidden border-b border-[var(--rule)] bg-[#f7f8f2]">
+        <div className="pointer-events-none absolute inset-0 opacity-70" aria-hidden>
+          <svg className="absolute -right-20 top-8 h-72 w-[36rem] text-[#d7a529]/20" viewBox="0 0 580 280" fill="none">
+            <path d="M7 226C122 94 206 154 300 70c93-83 178-68 274-32" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M39 265C152 169 239 196 344 101c69-62 126-74 215-53" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <LeafIcon className="home-leaf absolute left-[6%] top-20 h-7 w-7 text-[var(--accent)] opacity-25" />
+          <LeafIcon className="home-leaf home-leaf-delay absolute bottom-16 right-[10%] h-6 w-6 text-[#d7a529] opacity-30" />
+        </div>
+        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8">
+          <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-end">
+            <div>
+              <SectionLabel>Unique value</SectionLabel>
+              <h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl">
+                A training grove, not another blank prompt box.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-[15px] leading-7 text-[var(--muted)] lg:ml-auto">
+              Squinia keeps the whole performance record together: scenario design, persona behavior, live practice, transcript persistence, and evidence-backed coaching.
             </p>
           </div>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
             {valuePillars.map((item) => (
-              <article key={item.title} className="rounded-lg border border-[var(--rule)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
-                <p className="font-mono text-[10px] uppercase text-[var(--accent)]">{item.label}</p>
-                <h3 className="mt-3 text-lg font-semibold">{item.title}</h3>
-                <p className="mt-3 text-[14px] leading-6 text-[var(--muted)]">{item.body}</p>
+              <article
+                key={item.title}
+                className={[
+                  "home-value-card group flex min-h-[29rem] flex-col overflow-hidden rounded-lg border p-4 shadow-[0_34px_90px_-58px_rgba(17,21,17,0.48)]",
+                  item.tone,
+                ].join(" ")}
+              >
+                <ValuePillarVisual type={item.visual} />
+                <div className="flex flex-1 flex-col justify-end px-1 pb-1 pt-6">
+                  <p className="font-mono text-[10px] uppercase text-[#1d7d3a]">{item.label}</p>
+                  <h3 className="mt-3 text-2xl font-semibold leading-[1.08]">{item.title}</h3>
+                  <p className="mt-4 text-[15px] leading-7 text-[rgba(17,21,17,0.72)]">{item.body}</p>
+                </div>
               </article>
             ))}
           </div>
+          {/* <div className="relative z-10 mt-6 flex justify-center">
+            <Link href="#demo" className="sim-btn-accent px-5 py-3 font-mono text-[10px] uppercase">
+              See it in a demo
+            </Link>
+          </div> */}
         </div>
       </section>
 

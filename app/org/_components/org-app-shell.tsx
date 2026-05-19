@@ -20,6 +20,7 @@ const SCENARIO_STUDIO_NAV = [
 
 const NAV_AFTER = [
   { href: "/org/assignments", label: "Assignments" },
+  { href: "/org/vetting", label: "Vetting" },
   { href: "/org/analytics", label: "Analytics" },
   { href: "/org/settings", label: "Settings" },
 ] as const;
@@ -36,6 +37,8 @@ function navActive(href: string, pathname: string): boolean {
       return pathname.startsWith("/org/rubrics");
     case "/org/assignments":
       return pathname.startsWith("/org/assignments");
+    case "/org/vetting":
+      return pathname.startsWith("/org/vetting");
     case "/org/analytics":
       return pathname === "/org/analytics";
     case "/org/settings":

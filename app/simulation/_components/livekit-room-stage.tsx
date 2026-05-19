@@ -14,7 +14,7 @@ import {
 } from "@livekit/components-react";
 import { Participant, RoomEvent, Track, type TranscriptionSegment } from "livekit-client";
 
-import { issueLiveKitConnection } from "../_lib/backend-simulation";
+import { issueLiveKitConnection, type LiveKitConnection } from "../_lib/backend-simulation";
 import {
   registerLiveKitRecordingController,
   unregisterLiveKitRecordingController,
@@ -30,6 +30,7 @@ type Props = {
   remoteAvatarUrl?: string;
   learnerName?: string;
   elapsedLabel?: string;
+  connectionLoader?: (sessionId: string) => Promise<LiveKitConnection | null>;
   onTranscriptFinal?: (entry: {
     role: "USER" | "ASSISTANT";
     text: string;
@@ -346,7 +347,7 @@ function LiveKitSessionRecorder({ sessionId, mode }: Pick<Props, "sessionId" | "
       room.off(RoomEvent.LocalTrackPublished, handleTrackChange);
       room.off(RoomEvent.LocalTrackUnpublished, handleTrackChange);
       unregisterLiveKitRecordingController(sessionId, controller);
-      void disposeRecording({ discard: true });
+      void disposeRecording({ discard: !finalized });
     };
   }, [mode, room, sessionId]);
 
@@ -439,6 +440,7 @@ export function LiveKitRoomStage({
   remoteAvatarUrl,
   learnerName = "You",
   elapsedLabel,
+  connectionLoader,
   onTranscriptFinal,
 }: Props) {
   const [url, setUrl] = useState<string | null>(null);
@@ -451,7 +453,8 @@ export function LiveKitRoomStage({
       setError(null);
       setUrl(null);
       setToken(null);
-      const conn = await issueLiveKitConnection(sessionId);
+      const loadConnection = connectionLoader ?? issueLiveKitConnection;
+      const conn = await loadConnection(sessionId);
       if (cancelled) return;
       if (!conn) {
         setError("We could not start the call. Please try again.");
@@ -472,7 +475,7 @@ export function LiveKitRoomStage({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [connectionLoader, sessionId]);
 
   if (error) {
     return (

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Squinia helps bootcamp teams run realistic AI role-play simulations, capture transcripts, and return rubric-backed coaching for every learner.",
 };
 
-const defaultWalkthroughEmbedUrl = "https://www.loom.com/embed/1e2c5d0fbc534a2baaf815a131b548b8";
+const defaultWalkthroughEmbedUrl = "https://www.youtube.com/embed/BrFSWMBqgVc";
 const walkthroughEmbedUrl = videoEmbedSrc(process.env.NEXT_PUBLIC_SQUINIA_WALKTHROUGH_EMBED_URL) ?? defaultWalkthroughEmbedUrl;
 
 const alternatives = [
